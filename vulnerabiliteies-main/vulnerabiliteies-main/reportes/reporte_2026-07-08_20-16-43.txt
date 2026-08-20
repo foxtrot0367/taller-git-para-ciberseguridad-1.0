@@ -1,0 +1,99 @@
+════════════════════════════════════════════════════
+  REPORTE DE VULNERABILIDADES — VulnLab
+  Target  : http://localhost:8080
+  Fecha   : 2026-07-08 20:16:43
+  Analista: yusefgonzalez@MacBook-Pro-de-Yusef.local
+════════════════════════════════════════════════════
+
+
+  VulnLab — Reporte de Exportación
+  Guardando en: ./reportes/reporte_2026-07-08_20-16-43.txt
+
+──────────────────────────────────────────────────
+1. RECONOCIMIENTO
+──────────────────────────────────────────────────
+  Servidor activo : http://localhost:8080
+  Aplicación      : VulnLab v1.0
+  Server header   : Server: Werkzeug/3.1.8 Python/3.12.13
+
+──────────────────────────────────────────────────
+2. SQL INJECTION (A03:2021)
+──────────────────────────────────────────────────
+  [OK] /login — sin SQLi detectado
+  [CRITICO] A03 /search
+           Descripción : SQL Injection UNION — extracción de usuarios
+           Payload     : ' UNION SELECT ...
+
+──────────────────────────────────────────────────
+3. XSS REFLEJADO (A03:2021)
+──────────────────────────────────────────────────
+  [ALTO] A03 /search
+           Descripción : XSS reflejado — payload sin encodear
+           Payload     : <script>alert(1)</script>
+
+──────────────────────────────────────────────────
+4. COMMAND INJECTION / RCE (A03:2021)
+──────────────────────────────────────────────────
+  [CRITICO] A03 /ping
+           Descripción : RCE via command injection
+           Payload     : 127.0.0.1; id
+           Output RCE  : uid=0(root) gid=0(root) groups=0(root)
+
+──────────────────────────────────────────────────
+5. IDOR — ACCESO NO AUTORIZADO (A01:2021)
+──────────────────────────────────────────────────
+  [CRITICO] A01 /notes?id=1
+           Descripción : IDOR — nota sensible del admin accesible
+           Payload     : id=1
+           Contenido   : Nota #1: Flag secreta: FLAG{sql_injection_found}
+  [ALTO] A01 /notes?id=2
+           Descripción : IDOR — nota de otro usuario accesible
+           Payload     : id=2
+  [ALTO] A01 /notes?id=3
+           Descripción : IDOR — nota de otro usuario accesible
+           Payload     : id=3
+
+──────────────────────────────────────────────────
+6. INFORMATION DISCLOSURE (A05:2021)
+──────────────────────────────────────────────────
+  [CRITICO] A05 /info
+           Descripción : Secret key de Flask expuesta
+           Payload     : supersecret123
+  [ALTO] A05 /info
+           Descripción : 15 variables de entorno expuestas
+           Payload     : GET /info
+
+──────────────────────────────────────────────────
+7. BROKEN AUTHENTICATION — API (A07:2021)
+──────────────────────────────────────────────────
+  [ALTO] A07 /api/users
+           Descripción : Token débil encontrado: token123
+           Payload     : X-Token: token123
+
+──────────────────────────────────────────────────
+8. INSECURE DESERIALIZATION (A08:2021)
+──────────────────────────────────────────────────
+  [CRITICO] A08 /deserialize
+           Descripción : pickle.loads() ejecuta código arbitrario
+           Payload     : base64(pickle_rce)
+
+──────────────────────────────────────────────────
+9. SSRF (A10:2021)
+──────────────────────────────────────────────────
+  [ALTO] A10 /fetch
+           Descripción : SSRF — acceso a servicio interno
+           Payload     : url=http://127.0.0.1:5000/info
+
+──────────────────────────────────────────────────
+RESUMEN EJECUTIVO
+──────────────────────────────────────────────────
+  Total vulnerabilidades : 11
+  Checks OK              : 1
+
+  Hallazgos por severidad:
+    CRÍTICO : 5
+    ALTO    : 6
+    MEDIO   : 0
+
+  Reporte guardado en: ./reportes/reporte_2026-07-08_20-16-43.txt
+──────────────────────────────────────────────────

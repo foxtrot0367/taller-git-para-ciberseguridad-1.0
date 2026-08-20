@@ -1,0 +1,34 @@
+services:
+  vulnlab:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: vulnlab:latest
+    container_name: vulnlab
+    ports:
+      # Puerto 5000 en macOS lo usa AirPlay Receiver — usamos 8080 en el host
+      - "8080:5000"
+    environment:
+      DB_PATH: /app/data/users.db
+      UPLOAD_DIR: /tmp/uploads
+      FLASK_ENV: development
+      FLASK_DEBUG: "1"
+      FLAG_RCE: "FLAG{cmd_injection_rce}"
+    volumes:
+      # BD persiste entre reinicios del contenedor
+      - vuln_db:/app/data
+    networks:
+      pentest_net:
+        ipv4_address: 172.28.0.10
+    restart: unless-stopped
+
+networks:
+  pentest_net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.28.0.0/24
+
+volumes:
+  vuln_db:
+    name: vulnlab_db
