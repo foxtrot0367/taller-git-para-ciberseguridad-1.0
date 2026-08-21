@@ -1,0 +1,35 @@
+name: Bitácora de Incidente / Evento
+description: Registrar un evento o incidente de ciberseguridad.
+title: "[INCIDENTE]: "
+labels: ["security-log"]
+body:
+  - type: input
+    id: datetime
+    attributes:
+      label: Fecha y Hora del Evento (UTC)
+      placeholder: Ej. 2026-08-20 15:30 UTC
+    validations:
+      required: true
+  - type: dropdown
+    id: severity
+    attributes:
+      label: Severidad / Prioridad
+      options:
+        - P1 - Crítico (Brecha activa / Afectación masiva)
+        - P2 - Alto (Ataque mitigado pero con riesgo)
+        - P3 - Medio (Anomalía detectada, sin impacto real)
+        - P4 - Bajo (Falso positivo / Alerta informativa)
+    validations:
+      required: true
+  - type: textarea
+    id: description
+    attributes:
+      label: Descripción del Evento
+      placeholder: ¿Qué sucedió? ¿Qué sistemas están involucrados?
+    validations:
+      required: true
+  - type: textarea
+    id: ioc
+    attributes:
+      label: Indicadores de Compromiso (IoCs)
+      placeholder: IPs maliciosas, hashes de archivos, dominios, usuarios afectados..
