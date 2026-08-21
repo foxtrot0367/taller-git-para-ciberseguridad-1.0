@@ -1,0 +1,30 @@
+name: Tarea Operativa de Ciberseguridad
+description: Registrar y documentar actividades de mantenimiento o hardening de seguridad.
+title: "[SEC-OPS]: "
+labels: ["security-task"]
+body:
+  - type: dropdown
+    id: category
+    attributes:
+      label: Categoría de la Tarea
+      options:
+        - Hardening / Robustecimiento
+        - Auditoría de Accesos
+        - Análisis de Vulnerabilidades
+        - Mantenimiento / Parches
+    validations:
+      required: true
+  - type: textarea
+    id: objective
+    attributes:
+      label: Objetivo y Alcance
+      placeholder: Describe qué se busca lograr y qué sistemas se verán afectados.
+    validations:
+      required: true
+  - type: textarea
+    id: verification
+    attributes:
+      label: Evidencia y Criterios de Aceptación
+      placeholder: Comandos ejecutados, hashes, logs o capturas de pantalla de la validación.
+    validations:
+      required: true
